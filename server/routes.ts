@@ -49,7 +49,7 @@ export async function registerRoutes(
     });
   }, 60000);
 
-  app.get("/api/temp-pdf/:token", (req, res) => {
+  const serveTempPdf = (req: any, res: any) => {
     const entry = tempPdfStore.get(req.params.token);
     if (!entry || Date.now() > entry.expires) {
       tempPdfStore.delete(req.params.token);
@@ -57,10 +57,12 @@ export async function registerRoutes(
     }
     const fname = entry.filename || "capari-ekstre.pdf";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(fname)}"; filename*=UTF-8''${encodeURIComponent(fname)}`);
     res.send(entry.buffer);
     tempPdfStore.delete(req.params.token);
-  });
+  };
+  app.get("/api/temp-pdf/:token/:filename", serveTempPdf);
+  app.get("/api/temp-pdf/:token", serveTempPdf);
 
   app.use("/api", requireAuth);
 
@@ -514,12 +516,13 @@ export async function registerRoutes(
       const pdfBuffer = Buffer.concat(chunks);
 
       const token = randomBytes(32).toString("hex");
-      const safeName = party.name.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-      tempPdfStore.set(token, { buffer: pdfBuffer, expires: Date.now() + 3 * 60 * 1000, filename: `${safeName}-Ekstre.pdf` });
+      const pdfFilename = `${party.name}-Ekstre.pdf`;
+      tempPdfStore.set(token, { buffer: pdfBuffer, expires: Date.now() + 3 * 60 * 1000, filename: pdfFilename });
 
       const host = req.headers.host || "localhost:5000";
       const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-      const pdfUrl = `${protocol}://${host}/api/temp-pdf/${token}`;
+      const encodedFilename = encodeURIComponent(pdfFilename);
+      const pdfUrl = `${protocol}://${host}/api/temp-pdf/${token}/${encodedFilename}`;
 
       const response = await fetch("https://my.wpileti.com/api/send-media", {
         method: "POST",
@@ -533,6 +536,7 @@ export async function registerRoutes(
           data: {
             url: pdfUrl,
             media_type: "file",
+            filename: pdfFilename,
             caption: message || `${party.name} - Cari Hesap Ekstre`,
           },
         }),

@@ -295,16 +295,22 @@ export default function CounterpartyDetail() {
         receiver: party.phone,
         message: msg,
       });
-      await textRes.json();
+      const textResult = await textRes.json();
+      if (!textRes.ok) {
+        toast({ title: "Mesaj gönderilemedi", description: textResult.message || "Bilinmeyen hata", variant: "destructive" });
+        setPdfSending(false);
+        return;
+      }
+      toast({ title: "Mesaj iletildi, PDF hazirlaniyor..." });
 
       const pdfRes = await apiRequest("POST", "/api/whatsapp/send-pdf", {
         receiver: party.phone,
         counterpartyId: party.id,
-        message: `${party.name} - Detaylı Cari Hesap Ekstre`,
+        message: `${party.name} - Cari Hesap Ekstre`,
       });
       const pdfResult = await pdfRes.json();
       if (pdfResult.success) {
-        toast({ title: "Detaylı cari WhatsApp ile gönderildi" });
+        toast({ title: "PDF de WhatsApp ile iletildi" });
       } else {
         toast({ title: "PDF gönderilemedi", description: pdfResult.message, variant: "destructive" });
       }
