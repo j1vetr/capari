@@ -39,6 +39,28 @@ export async function registerRoutes(
     });
   });
 
+  const { randomBytes } = await import("crypto");
+  const tempPdfStore = new Map<string, { buffer: Buffer; expires: number }>();
+
+  setInterval(() => {
+    const now = Date.now();
+    tempPdfStore.forEach((val, key) => {
+      if (now > val.expires) tempPdfStore.delete(key);
+    });
+  }, 60000);
+
+  app.get("/api/temp-pdf/:token", (req, res) => {
+    const entry = tempPdfStore.get(req.params.token);
+    if (!entry || Date.now() > entry.expires) {
+      tempPdfStore.delete(req.params.token);
+      return res.status(404).json({ message: "PDF bulunamadi veya suresi dolmus" });
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="capari-ekstre.pdf"`);
+    res.send(entry.buffer);
+    tempPdfStore.delete(req.params.token);
+  });
+
   app.use("/api", requireAuth);
 
   app.get("/api/dashboard", async (_req, res) => {
@@ -115,8 +137,9 @@ export async function registerRoutes(
       if (!party) return res.status(404).json({ message: "Bulunamadı" });
       const { transactions: txs } = await storage.getTransactionsByCounterparty(req.params.id);
 
+      const safeName = party.name.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${party.name}-ekstre.pdf"`);
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}-ekstre.pdf"; filename*=UTF-8''${encodeURIComponent(party.name)}-ekstre.pdf`);
       const doc = generateCounterpartyPDF(party, txs);
       doc.pipe(res);
       doc.end();
@@ -428,28 +451,6 @@ export async function registerRoutes(
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
-  });
-
-  const { randomBytes } = await import("crypto");
-  const tempPdfStore = new Map<string, { buffer: Buffer; expires: number }>();
-
-  setInterval(() => {
-    const now = Date.now();
-    tempPdfStore.forEach((val, key) => {
-      if (now > val.expires) tempPdfStore.delete(key);
-    });
-  }, 60000);
-
-  app.get("/api/temp-pdf/:token", (req, res) => {
-    const entry = tempPdfStore.get(req.params.token);
-    if (!entry || Date.now() > entry.expires) {
-      tempPdfStore.delete(req.params.token);
-      return res.status(404).json({ message: "PDF bulunamadi veya suresi dolmus" });
-    }
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="capari-cari-rapor.pdf"`);
-    res.send(entry.buffer);
-    tempPdfStore.delete(req.params.token);
   });
 
   app.post("/api/whatsapp/send-pdf", requireAuth, async (req, res) => {
