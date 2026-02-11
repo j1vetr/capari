@@ -1,0 +1,76 @@
+
+root@162-55-4-35:/var/www/capari# cat /var/www/capari/shared/schema.ts
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, numeric, date, timestamp, uuid, index, boolean, integer } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+export const counterparties = pgTable("counterparties", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type", { enum: ["customer", "supplier"] }).notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  notes: text("notes"),
+  invoiced: boolean("invoiced").default(false).notNull(),
+  taxNumber: text("tax_number"),
+  taxOffice: text("tax_office"),
+  companyTitle: text("company_title"),
+  address: text("address"),
+  paymentDueDay: integer("payment_due_day"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const transactions = pgTable("transactions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  counterpartyId: uuid("counterparty_id").notNull().references(() => counterparties.id),
+  txType: text("tx_type", { enum: ["sale", "collection", "purchase", "payment"] }).notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  description: text("description"),
+  txDate: date("tx_date").defaultNow().notNull(),
+  reversedOf: uuid("reversed_of"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_transactions_counterparty").on(table.counterpartyId),
+  index("idx_transactions_tx_date").on(table.txDate),
+]);
+
+export const insertCounterpartySchema = createInsertSchema(counterparties).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransactionSchema = createInsertSchema(transactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCounterparty = z.infer<typeof insertCounterpartySchema>;
+export type Counterparty = typeof counterparties.$inferSelect;
+
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Transaction = typeof transactions.$inferSelect;
+
+export type CounterpartyWithBalance = Counterparty & { balance: string };
+export type TransactionWithCounterparty = Transaction & { counterpartyName: string; counterpartyType: string };
+
+export type DashboardSummary = {
+  totalReceivables: string;
+  totalPayables: string;
+  todaySales: string;
+  todayCollections: string;
+  todayPurchases: string;
+  todayPayments: string;
+  last7DaysSales: { date: string; total: string }[];
+};
+
+export type StatsData = {
+  topDebtors: { id: string; name: string; balance: string }[];
+  topCreditors: { id: string; name: string; balance: string }[];
+  totalCustomers: number;
+  totalSuppliers: number;
+  totalTransactions: number;
+  upcomingPayments: { id: string; name: string; type: string; balance: string; paymentDueDay: number; daysLeft: number }[];
+};
+root@162-55-4-35:/var/www/capari#
