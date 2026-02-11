@@ -1,16 +1,129 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { insertCounterpartySchema, insertTransactionSchema } from "@shared/schema";
+import { z } from "zod";
+import { generateCounterpartyPDF, generateDailyReportPDF } from "./pdf";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  app.get("/api/dashboard", async (_req, res) => {
+    try {
+      const summary = await storage.getDashboardSummary();
+      res.json(summary);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/counterparties", async (_req, res) => {
+    try {
+      const list = await storage.getCounterparties();
+      res.json(list);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/counterparties/:id", async (req, res) => {
+    try {
+      const party = await storage.getCounterparty(req.params.id);
+      if (!party) return res.status(404).json({ message: "Bulunamadı" });
+      res.json(party);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/counterparties", async (req, res) => {
+    try {
+      const parsed = insertCounterpartySchema.parse(req.body);
+      if (!parsed.name?.trim()) return res.status(400).json({ message: "İsim gerekli" });
+      const created = await storage.createCounterparty(parsed);
+      res.status(201).json(created);
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/counterparties/:id/transactions", async (req, res) => {
+    try {
+      const txs = await storage.getTransactionsByCounterparty(req.params.id);
+      res.json(txs);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/counterparties/:id/pdf", async (req, res) => {
+    try {
+      const party = await storage.getCounterparty(req.params.id);
+      if (!party) return res.status(404).json({ message: "Bulunamadı" });
+      const txs = await storage.getTransactionsByCounterparty(req.params.id);
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${party.name}-ekstre.pdf"`);
+      const doc = generateCounterpartyPDF(party, txs);
+      doc.pipe(res);
+      doc.end();
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/transactions", async (req, res) => {
+    try {
+      const parsed = insertTransactionSchema.parse(req.body);
+      const amount = parseFloat(parsed.amount);
+      if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ message: "Tutar sıfırdan büyük olmalı" });
+      }
+      const created = await storage.createTransaction(parsed);
+      res.status(201).json(created);
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/transactions/:id/reverse", async (req, res) => {
+    try {
+      const reversed = await storage.reverseTransaction(req.params.id);
+      res.status(201).json(reversed);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/reports/daily/:date", async (req, res) => {
+    try {
+      const report = await storage.getDailyReport(req.params.date);
+      res.json(report);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/reports/daily/:date/pdf", async (req, res) => {
+    try {
+      const report = await storage.getDailyReport(req.params.date);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="rapor-${req.params.date}.pdf"`);
+      const doc = generateDailyReportPDF(req.params.date, report);
+      doc.pipe(res);
+      doc.end();
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
 
   return httpServer;
 }
