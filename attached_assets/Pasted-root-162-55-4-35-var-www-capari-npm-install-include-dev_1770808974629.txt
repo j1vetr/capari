@@ -1,0 +1,58 @@
+root@162-55-4-35:/var/www/capari# npm install --include=dev
+
+added 107 packages, and audited 498 packages in 2s
+
+78 packages are looking for funding
+  run `npm fund` for details
+
+1 moderate severity vulnerability
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+root@162-55-4-35:/var/www/capari# npm run db:push
+
+> rest-express@1.0.0 db:push
+> node -r dotenv/config ./node_modules/.bin/drizzle-kit push
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/var/www/capari/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+TypeError: Cannot read properties of undefined (reading 'searchParams')
+    at parse (/var/www/capari/node_modules/pg-connection-string/index.js:39:30)
+    at new ConnectionParameters (/var/www/capari/node_modules/pg/lib/connection-parameters.js:56:42)
+    at new Client (/var/www/capari/node_modules/pg/lib/client.js:18:33)
+    at BoundPool.newClient (/var/www/capari/node_modules/pg-pool/index.js:233:20)
+    at BoundPool.connect (/var/www/capari/node_modules/pg-pool/index.js:227:10)
+    at BoundPool.query (/var/www/capari/node_modules/pg-pool/index.js:411:10)
+    at Object.query (/var/www/capari/node_modules/drizzle-kit/bin.cjs:80622:39)
+    at fromDatabase2 (/var/www/capari/node_modules/drizzle-kit/bin.cjs:19276:34)
+    at pgPushIntrospect (/var/www/capari/node_modules/drizzle-kit/bin.cjs:83692:9)
+    at pgPush (/var/www/capari/node_modules/drizzle-kit/bin.cjs:84370:41)
+root@162-55-4-35:/var/www/capari# npm run build
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (1) src/main.tsx
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 2343 modules transformed.
+../dist/public/index.html                   2.17 kB │ gzip:   0.85 kB
+../dist/public/assets/index-B2aV5Aqe.css   82.74 kB │ gzip:  13.35 kB
+../dist/public/assets/index-D1eqRLXv.js   785.13 kB │ gzip: 228.77 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.76s
+building server...
+
+  dist/index.cjs  1.1mb ⚠️
+
+⚡ Done in 108ms
+root@162-55-4-35:/var/www/capari#
