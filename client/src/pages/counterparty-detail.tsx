@@ -16,7 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Phone, MessageCircle, Plus, Store, Truck,
   RotateCcw, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Download, Check, AlertCircle, FileText
+  Download, Check, AlertCircle, FileText, Clock, Pencil
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems } from "@/lib/formatters";
 import { ChevronDown, Fish } from "lucide-react";
@@ -33,6 +33,8 @@ export default function CounterpartyDetail() {
   const [filterType, setFilterType] = useState<string>("all");
   const [confirmReverse, setConfirmReverse] = useState<string | null>(null);
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
+  const [editingDueDay, setEditingDueDay] = useState(false);
+  const [dueDayValue, setDueDayValue] = useState("");
 
   const { data: party, isLoading: partyLoading } = useQuery<CounterpartyWithBalance>({
     queryKey: ["/api/counterparties", params.id],
@@ -72,6 +74,20 @@ export default function CounterpartyDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       toast({ title: "İşlem düzeltildi (ters kayıt oluşturuldu)" });
       setConfirmReverse(null);
+    },
+  });
+
+  const updateDueDayMutation = useMutation({
+    mutationFn: async (day: number | null) => {
+      const res = await apiRequest("PATCH", `/api/counterparties/${params.id}`, { paymentDueDay: day });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Ödeme günü güncellendi" });
+      setEditingDueDay(false);
     },
   });
 
@@ -240,6 +256,33 @@ export default function CounterpartyDetail() {
                   </div>
                 </div>
               )}
+
+              <div className="mt-3 p-3 rounded-md bg-white/50 dark:bg-black/10 border border-gray-100 dark:border-muted">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-orange-500" />
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Ödeme Günü</p>
+                      {party.paymentDueDay ? (
+                        <p className="text-sm font-bold text-gray-800 dark:text-foreground">Her ayın {party.paymentDueDay}. günü</p>
+                      ) : (
+                        <p className="text-xs text-gray-400 dark:text-muted-foreground">Belirlenmedi</p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setDueDayValue(party.paymentDueDay?.toString() || "");
+                      setEditingDueDay(true);
+                    }}
+                    data-testid="button-edit-due-day"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
 
               <Separator className="my-3 bg-gray-200/50 dark:bg-muted" />
 
@@ -530,6 +573,61 @@ export default function CounterpartyDetail() {
             >
               {reverseMutation.isPending ? "İşleniyor..." : "Düzelt"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingDueDay} onOpenChange={setEditingDueDay}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-orange-500" />
+              Ödeme Günü Belirle
+            </DialogTitle>
+            <DialogDescription>
+              Bu firma için ayın hangi günü ödeme yapılacağını belirleyin. Kaldırmak için boş bırakıp kaydedin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <div>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                Ayın Günü (1-31)
+              </Label>
+              <Input
+                type="number"
+                min="1"
+                max="31"
+                value={dueDayValue}
+                onChange={(e) => setDueDayValue(e.target.value)}
+                placeholder="Örn: 15"
+                data-testid="input-due-day"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEditingDueDay(false)}>
+                Vazgeç
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  const val = dueDayValue.trim();
+                  if (!val) {
+                    updateDueDayMutation.mutate(null);
+                  } else {
+                    const num = parseInt(val);
+                    if (num >= 1 && num <= 31) {
+                      updateDueDayMutation.mutate(num);
+                    } else {
+                      toast({ title: "1-31 arası bir gün girin", variant: "destructive" });
+                    }
+                  }
+                }}
+                disabled={updateDueDayMutation.isPending}
+                data-testid="button-save-due-day"
+              >
+                {updateDueDayMutation.isPending ? "Kaydediliyor..." : "Kaydet"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

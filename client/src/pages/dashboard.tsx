@@ -4,12 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   TrendingUp, TrendingDown, ShoppingCart, ArrowDownToLine,
-  Banknote, ArrowUpFromLine, Plus, ChevronRight, CalendarDays, Users
+  Banknote, ArrowUpFromLine, Plus, ChevronRight, CalendarDays, Users,
+  Crown, AlertTriangle, Clock, BarChart3, Store, Truck
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg } from "@/lib/formatters";
-import type { DashboardSummary } from "@shared/schema";
+import type { DashboardSummary, StatsData } from "@shared/schema";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 
 function StatCardLarge({ title, value, subtitle, icon: Icon, bgClass, iconClass, isLoading }: {
@@ -79,6 +81,9 @@ export default function Dashboard() {
   const [, navigate] = useLocation();
   const { data, isLoading } = useQuery<DashboardSummary>({
     queryKey: ["/api/dashboard"],
+  });
+  const { data: stats, isLoading: statsLoading } = useQuery<StatsData>({
+    queryKey: ["/api/stats"],
   });
 
   const chartData = data?.last7DaysSales?.map((d, i, arr) => ({
@@ -206,6 +211,152 @@ export default function Dashboard() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-3 gap-2">
+        <Card data-testid="card-stat-customers">
+          <CardContent className="p-3 text-center">
+            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-sky-50 dark:bg-sky-950/30 mx-auto mb-1.5">
+              <Store className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            </div>
+            <p className="text-lg font-bold text-gray-900 dark:text-foreground">{statsLoading ? "-" : stats?.totalCustomers ?? 0}</p>
+            <p className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground">Müşteri</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-stat-suppliers">
+          <CardContent className="p-3 text-center">
+            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-amber-50 dark:bg-amber-950/30 mx-auto mb-1.5">
+              <Truck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <p className="text-lg font-bold text-gray-900 dark:text-foreground">{statsLoading ? "-" : stats?.totalSuppliers ?? 0}</p>
+            <p className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground">Tedarikçi</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-stat-transactions">
+          <CardContent className="p-3 text-center">
+            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-purple-50 dark:bg-purple-950/30 mx-auto mb-1.5">
+              <BarChart3 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            </div>
+            <p className="text-lg font-bold text-gray-900 dark:text-foreground">{statsLoading ? "-" : stats?.totalTransactions ?? 0}</p>
+            <p className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground">İşlem</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {stats && stats.topDebtors.length > 0 && (
+        <Card data-testid="card-top-debtors">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-md bg-emerald-50 dark:bg-emerald-950/30">
+                <Crown className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900 dark:text-foreground">En Çok Borçlular</p>
+                <p className="text-[10px] text-gray-400 dark:text-muted-foreground">Müşteri bakiyeleri</p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {stats.topDebtors.map((d, i) => (
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
+                  onClick={() => navigate(`/counterparties/${d.id}`)}
+                  data-testid={`row-debtor-${d.id}`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex-shrink-0">
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">{i + 1}</span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-foreground truncate">{d.name}</p>
+                  </div>
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 flex-shrink-0">{formatCurrency(d.balance)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {stats && stats.topCreditors.length > 0 && (
+        <Card data-testid="card-top-creditors">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-md bg-rose-50 dark:bg-rose-950/30">
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900 dark:text-foreground">En Çok Borçlu Olduklarımız</p>
+                <p className="text-[10px] text-gray-400 dark:text-muted-foreground">Tedarikçi bakiyeleri</p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {stats.topCreditors.map((c, i) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
+                  onClick={() => navigate(`/counterparties/${c.id}`)}
+                  data-testid={`row-creditor-${c.id}`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-rose-100 dark:bg-rose-900/40 flex-shrink-0">
+                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300">{i + 1}</span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-foreground truncate">{c.name}</p>
+                  </div>
+                  <p className="text-sm font-bold text-rose-600 dark:text-rose-400 flex-shrink-0">{formatCurrency(c.balance)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {stats && stats.upcomingPayments.length > 0 && (
+        <Card data-testid="card-upcoming-payments">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-md bg-orange-50 dark:bg-orange-950/30">
+                <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900 dark:text-foreground">Yaklaşan Ödeme Günleri</p>
+                <p className="text-[10px] text-gray-400 dark:text-muted-foreground">Ayın ödeme takvimi</p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {stats.upcomingPayments.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
+                  onClick={() => navigate(`/counterparties/${p.id}`)}
+                  data-testid={`row-payment-${p.id}`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 ${
+                      p.daysLeft <= 3 ? "bg-red-100 dark:bg-red-900/40" : "bg-orange-100 dark:bg-orange-900/40"
+                    }`}>
+                      <span className={`text-[10px] font-bold ${
+                        p.daysLeft <= 3 ? "text-red-700 dark:text-red-300" : "text-orange-700 dark:text-orange-300"
+                      }`}>{p.paymentDueDay}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-foreground truncate">{p.name}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                        {p.daysLeft === 0 ? "Bugün!" : `${p.daysLeft} gün kaldı`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-gray-700 dark:text-foreground">{formatCurrency(p.balance)}</p>
+                    <Badge variant="secondary" className="text-[9px]">
+                      {p.type === "customer" ? "Müşteri" : "Tedarikçi"}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

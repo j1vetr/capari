@@ -103,6 +103,31 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/stats", async (_req, res) => {
+    try {
+      const stats = await storage.getStats();
+      res.json(stats);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/counterparties/:id", async (req, res) => {
+    try {
+      const updateSchema = z.object({
+        paymentDueDay: z.number().int().min(1).max(31).nullable(),
+      });
+      const parsed = updateSchema.parse(req.body);
+      const updated = await storage.updateCounterparty(req.params.id, parsed);
+      res.json(updated);
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/reports/daily/:date", async (req, res) => {
     try {
       const report = await storage.getDailyReport(req.params.date);

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, numeric, date, timestamp, uuid, index, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, date, timestamp, uuid, index, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -14,6 +14,7 @@ export const counterparties = pgTable("counterparties", {
   taxOffice: text("tax_office"),
   companyTitle: text("company_title"),
   address: text("address"),
+  paymentDueDay: integer("payment_due_day"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -60,4 +61,13 @@ export type DashboardSummary = {
   todayPurchases: string;
   todayPayments: string;
   last7DaysSales: { date: string; total: string }[];
+};
+
+export type StatsData = {
+  topDebtors: { id: string; name: string; balance: string }[];
+  topCreditors: { id: string; name: string; balance: string }[];
+  totalCustomers: number;
+  totalSuppliers: number;
+  totalTransactions: number;
+  upcomingPayments: { id: string; name: string; type: string; balance: string; paymentDueDay: number; daysLeft: number }[];
 };

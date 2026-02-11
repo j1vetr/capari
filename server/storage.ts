@@ -3,7 +3,7 @@ import { db } from "./db";
 import { counterparties, transactions } from "@shared/schema";
 import type {
   Counterparty, InsertCounterparty, CounterpartyWithBalance,
-  Transaction, InsertTransaction, TransactionWithCounterparty, DashboardSummary
+  Transaction, InsertTransaction, TransactionWithCounterparty, DashboardSummary, StatsData
 } from "@shared/schema";
 
 export interface IStorage {
@@ -16,6 +16,9 @@ export interface IStorage {
   createTransaction(data: InsertTransaction): Promise<Transaction>;
   getTransaction(id: string): Promise<Transaction | undefined>;
   reverseTransaction(id: string): Promise<Transaction>;
+
+  getStats(): Promise<StatsData>;
+  updateCounterparty(id: string, data: Partial<InsertCounterparty>): Promise<CounterpartyWithBalance>;
 
   getDashboardSummary(): Promise<DashboardSummary>;
   getDailyReport(date: string): Promise<{
@@ -124,6 +127,66 @@ export class DatabaseStorage implements IStorage {
     }).returning();
 
     return reversed;
+  }
+
+  async updateCounterparty(id: string, data: Partial<InsertCounterparty>): Promise<CounterpartyWithBalance> {
+    await db.update(counterparties).set({ ...data, updatedAt: new Date() }).where(eq(counterparties.id, id));
+    const updated = await this.getCounterparty(id);
+    if (!updated) throw new Error("Cari bulunamadı");
+    return updated;
+  }
+
+  async getStats(): Promise<StatsData> {
+    const allParties = await this.getCounterparties();
+
+    const customers = allParties.filter(p => p.type === "customer");
+    const suppliers = allParties.filter(p => p.type === "supplier");
+
+    const topDebtors = customers
+      .filter(c => parseFloat(c.balance) > 0)
+      .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance))
+      .slice(0, 5)
+      .map(c => ({ id: c.id, name: c.name, balance: c.balance }));
+
+    const topCreditors = suppliers
+      .filter(s => parseFloat(s.balance) > 0)
+      .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance))
+      .slice(0, 5)
+      .map(s => ({ id: s.id, name: s.name, balance: s.balance }));
+
+    const txCountResult = await db.execute(sql`SELECT COUNT(*)::int as count FROM transactions`);
+    const totalTransactions = (txCountResult.rows[0] as any)?.count || 0;
+
+    const today = new Date();
+    const upcomingPayments = allParties
+      .filter(p => p.paymentDueDay && parseFloat(p.balance) > 0)
+      .map(p => {
+        const dueDay = p.paymentDueDay!;
+        let nextDue = new Date(today.getFullYear(), today.getMonth(), dueDay);
+        if (nextDue < today) {
+          nextDue = new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
+        }
+        const daysLeft = Math.ceil((nextDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          balance: p.balance,
+          paymentDueDay: dueDay,
+          daysLeft: Math.max(0, daysLeft),
+        };
+      })
+      .sort((a, b) => a.daysLeft - b.daysLeft)
+      .slice(0, 10);
+
+    return {
+      topDebtors,
+      topCreditors,
+      totalCustomers: customers.length,
+      totalSuppliers: suppliers.length,
+      totalTransactions,
+      upcomingPayments,
+    };
   }
 
   async getDashboardSummary(): Promise<DashboardSummary> {
