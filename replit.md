@@ -11,19 +11,20 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - **PWA**: manifest.json + apple-mobile-web-app meta tags for installability
 
 ## Project Structure
-- `shared/schema.ts` - Drizzle schema: counterparties, transactions tables + TypeScript types
+- `shared/schema.ts` - Drizzle schema: counterparties, transactions, products, transaction_items tables + TypeScript types
 - `server/db.ts` - Database connection pool
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
 - `server/routes.ts` - Express API routes
 - `server/pdf.ts` - PDF generation for counterparty statements and daily reports
 - `server/seed.ts` - Demo seed data (customers, suppliers, transactions)
-- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties, counterparty-detail, reports
+- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties, counterparty-detail, reports, stock
 - `client/src/lib/formatters.ts` - Currency/date formatting utilities (Turkish locale)
 
 ## Key Features
 - **Login screen**: Session-based authentication with password (LOGIN_PASSWORD env var, default: capari2024). 30-day session cookie. Logout button in header.
 - Dashboard with summary cards (receivables, payables, daily totals) + 7-day sales chart + recent transactions + urgent payment alerts
-- Quick Transaction flow: search counterparty → select type → enter amount → save (with date picker)
+- Quick Transaction flow: search counterparty → select type → select products with quantities → save (with date picker)
+- **Stock/Inventory tracking**: Products (fish) with units (kg/kasa/adet), stock levels computed from transactions. Sale decreases stock, purchase increases stock.
 - Counterparty list with tabs (Müşteriler/Tedarikçiler) and balance display
 - Counterparty detail: balance, transaction history with date range filtering + pagination, reverse (Düzelt) feature, delete counterparty
 - Global search dialog in header for quick counterparty lookup
@@ -37,14 +38,18 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 ## Data Model
 - **counterparties**: id (uuid), type (customer|supplier), name, phone, notes, invoiced (boolean, default false), taxNumber, taxOffice, companyTitle, address, paymentDueDay (integer 1-31, nullable)
 - **transactions**: id (uuid), counterparty_id (fk), tx_type (sale|collection|purchase|payment), amount (numeric 12,2), description, tx_date, reversed_of (uuid nullable)
+- **products**: id (uuid), name, unit (kg|kasa|adet), is_active (boolean)
+- **transaction_items**: id (uuid), transaction_id (fk), product_id (fk), quantity (numeric 10,2), unit_price (numeric 10,2 nullable)
 
 ## Business Rules
 - Customer balance = sum(sale) - sum(collection) → positive = customer owes us
 - Supplier balance = sum(purchase) - sum(payment) → positive = we owe supplier
-- No deletion: "Düzelt" creates compensating reverse transaction
+- Stock = sum(purchase quantities) - sum(sale quantities) per product
+- No deletion: "Düzelt" creates compensating reverse transaction (including stock reversal)
 - Counterparty deletion only allowed when balance is zero
 - Invoiced firms (faturalı): 1% KDV added separately on sale/purchase transactions
 - Transaction dates cannot be in the future
+- Sale transactions check stock availability before saving
 
 ## API Endpoints
 - POST /api/auth/login - Login with password
@@ -60,8 +65,13 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - DELETE /api/counterparties/:id - Delete counterparty (balance must be zero)
 - GET /api/counterparties/:id/transactions - Transaction history (startDate, endDate, limit, offset query params)
 - GET /api/counterparties/:id/pdf - PDF statement download
-- POST /api/transactions - Create transaction
+- POST /api/transactions - Create transaction (with optional items array for sale/purchase)
 - POST /api/transactions/:id/reverse - Create reverse transaction
+- GET /api/transactions/:id/items - Get transaction line items
+- GET /api/products - List all products
+- GET /api/stock - Products with computed stock levels
+- POST /api/products - Create new product
+- PATCH /api/products/:id - Update product
 - GET /api/reports/daily/:date - Daily report
 - GET /api/reports/daily/:date/pdf - Daily report PDF
 - GET /api/reports/monthly/:year/:month - Monthly report with daily breakdown

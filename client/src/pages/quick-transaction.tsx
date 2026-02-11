@@ -10,6 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
@@ -17,11 +24,13 @@ import {
   Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText, CalendarDays
 } from "lucide-react";
 import { formatCurrency, txTypeLabel, todayISO } from "@/lib/formatters";
-import type { CounterpartyWithBalance } from "@shared/schema";
+import type { CounterpartyWithBalance, Product } from "@shared/schema";
 
 type LineItem = {
   id: number;
-  product: string;
+  productId: string;
+  productName: string;
+  productUnit: string;
   quantity: string;
   unitPrice: string;
 };
@@ -77,7 +86,7 @@ export default function QuickTransaction() {
   const isSaleOrPurchase = txType === "sale" || txType === "purchase";
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: nextItemId++, product: "", quantity: "", unitPrice: "" },
+    { id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" },
   ]);
   const [directAmount, setDirectAmount] = useState("");
   const [directDescription, setDirectDescription] = useState("");
@@ -85,6 +94,10 @@ export default function QuickTransaction() {
 
   const { data: parties } = useQuery<CounterpartyWithBalance[]>({
     queryKey: ["/api/counterparties"],
+  });
+
+  const { data: productList } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
   });
 
   const filtered = parties?.filter((p) =>
@@ -128,10 +141,11 @@ export default function QuickTransaction() {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/recent-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
       toast({ title: `${txTypeLabel(txType)} kaydedildi`, description: `${selectedParty?.name} - ${formatCurrency(computedTotal)}` });
       setSelectedParty(null);
       setTxType("");
-      setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+      setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
       setDirectAmount("");
       setDirectDescription("");
       setTxDate(todayISO());
@@ -143,7 +157,7 @@ export default function QuickTransaction() {
   });
 
   const addLineItem = () => {
-    setLineItems([...lineItems, { id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+    setLineItems([...lineItems, { id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
   };
 
   const removeLineItem = (id: number) => {
@@ -170,10 +184,12 @@ export default function QuickTransaction() {
   const kdvAmount = isInvoiced && isSaleOrPurchase ? subtotal * kdvRate : 0;
   const computedTotal = subtotal + kdvAmount;
 
+  const unitLabel = (u: string) => u === "kg" ? "kg" : u === "kasa" ? "kasa" : "adet";
+
   const computedDescription = isSaleOrPurchase
     ? lineItems
-      .filter((li) => li.product && lineItemTotal(li) > 0)
-      .map((li) => `${li.product} ${li.quantity}kg x ${formatCurrency(li.unitPrice)}`)
+      .filter((li) => li.productId && lineItemTotal(li) > 0)
+      .map((li) => `${li.productName} ${li.quantity}${unitLabel(li.productUnit)} x ${formatCurrency(li.unitPrice)}`)
       .join(", ") + (kdvAmount > 0 ? ` [KDV %1: ${formatCurrency(kdvAmount)}]` : "")
     : directDescription;
 
@@ -185,13 +201,26 @@ export default function QuickTransaction() {
       toast({ title: "Gelecek tarihli işlem eklenemez", variant: "destructive" });
       return;
     }
-    createTxMutation.mutate({
+    const txPayload: any = {
       counterpartyId: selectedParty!.id,
       txType,
       amount: computedTotal.toFixed(2),
       description: computedDescription || undefined,
       txDate,
-    });
+    };
+
+    if (isSaleOrPurchase) {
+      const validItems = lineItems.filter(li => li.productId && parseFloat(li.quantity) > 0);
+      if (validItems.length > 0) {
+        txPayload.items = validItems.map(li => ({
+          productId: li.productId,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice || undefined,
+        }));
+      }
+    }
+
+    createTxMutation.mutate(txPayload);
   };
 
   const visibleTypes = selectedParty?.type === "customer" ? TX_TYPES_CUSTOMER : TX_TYPES_SUPPLIER;
@@ -356,7 +385,7 @@ export default function QuickTransaction() {
                     key={t.value}
                     onClick={() => {
                       setTxType(t.value);
-                      setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+                      setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
                       setDirectAmount("");
                       setDirectDescription("");
                     }}
@@ -409,13 +438,28 @@ export default function QuickTransaction() {
                             )}
                           </div>
                           <div className="flex flex-col gap-2">
-                            <Input
-                              placeholder="Ürün adı (örn: Levrek)"
-                              value={li.product}
-                              onChange={(e) => updateLineItem(li.id, "product", e.target.value)}
-                              className="bg-white dark:bg-card text-sm"
-                              data-testid={`input-product-${li.id}`}
-                            />
+                            <Select
+                              value={li.productId}
+                              onValueChange={(val) => {
+                                const p = productList?.find(pr => pr.id === val);
+                                setLineItems(lineItems.map(item =>
+                                  item.id === li.id
+                                    ? { ...item, productId: val, productName: p?.name || "", productUnit: p?.unit || "kg" }
+                                    : item
+                                ));
+                              }}
+                            >
+                              <SelectTrigger className="bg-white dark:bg-card text-sm" data-testid={`select-product-${li.id}`}>
+                                <SelectValue placeholder="Ürün seçin..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(productList || []).filter(p => p.isActive).map(p => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.name} ({p.unit})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="relative">
                                 <Input
@@ -423,13 +467,13 @@ export default function QuickTransaction() {
                                   inputMode="decimal"
                                   step="0.1"
                                   min="0"
-                                  placeholder="Miktar (kg)"
+                                  placeholder={`Miktar (${unitLabel(li.productUnit)})`}
                                   value={li.quantity}
                                   onChange={(e) => updateLineItem(li.id, "quantity", e.target.value)}
-                                  className="bg-white dark:bg-card text-sm pr-8"
+                                  className="bg-white dark:bg-card text-sm pr-12"
                                   data-testid={`input-quantity-${li.id}`}
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-medium">kg</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-medium">{unitLabel(li.productUnit)}</span>
                               </div>
                               <div className="relative">
                                 <Input
@@ -543,7 +587,7 @@ export default function QuickTransaction() {
                           {lineItems.filter(li => lineItemTotal(li) > 0).map((li) => (
                             <div key={li.id} className="flex items-center justify-between gap-2">
                               <span className="text-xs text-gray-500 dark:text-muted-foreground">
-                                {li.product || "Ürün"} ({li.quantity}kg x {formatCurrency(li.unitPrice)})
+                                {li.productName || "Ürün"} ({li.quantity}{unitLabel(li.productUnit)} x {formatCurrency(li.unitPrice)})
                               </span>
                               <span className="text-xs font-semibold text-gray-700 dark:text-foreground">{formatCurrency(lineItemTotal(li))}</span>
                             </div>

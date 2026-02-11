@@ -1,9 +1,10 @@
 import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
 import { db } from "./db";
-import { counterparties, transactions } from "@shared/schema";
+import { counterparties, transactions, products, transactionItems } from "@shared/schema";
 import type {
   Counterparty, InsertCounterparty, CounterpartyWithBalance,
-  Transaction, InsertTransaction, TransactionWithCounterparty, DashboardSummary, StatsData
+  Transaction, InsertTransaction, TransactionWithCounterparty, DashboardSummary, StatsData,
+  Product, InsertProduct, ProductWithStock, TransactionItem, TransactionItemWithProduct
 } from "@shared/schema";
 
 export interface IStorage {
@@ -32,6 +33,13 @@ export interface IStorage {
   getRecentTransactions(limit: number): Promise<TransactionWithCounterparty[]>;
   getAllTransactions(): Promise<TransactionWithCounterparty[]>;
   deleteCounterparty(id: string): Promise<void>;
+
+  getProducts(): Promise<Product[]>;
+  getProductsWithStock(): Promise<ProductWithStock[]>;
+  createProduct(data: InsertProduct): Promise<Product>;
+  updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product>;
+  createTransactionWithItems(data: InsertTransaction, items: { productId: string; quantity: string; unitPrice?: string }[]): Promise<Transaction>;
+  getTransactionItems(transactionId: string): Promise<TransactionItemWithProduct[]>;
   getMonthlyReport(year: number, month: number): Promise<{
     totalSales: string;
     totalCollections: string;
@@ -151,6 +159,17 @@ export class DatabaseStorage implements IStorage {
       txDate: new Date().toISOString().split("T")[0],
       reversedOf: original.id,
     }).returning();
+
+    const originalItems = await this.getTransactionItems(id);
+    if (originalItems.length > 0) {
+      const reverseItems = originalItems.map(item => ({
+        transactionId: reversed.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      }));
+      await db.insert(transactionItems).values(reverseItems);
+    }
 
     return reversed;
   }
@@ -362,8 +381,91 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCounterparty(id: string): Promise<void> {
+    const txRows = await db.select({ id: transactions.id }).from(transactions).where(eq(transactions.counterpartyId, id));
+    for (const tx of txRows) {
+      await db.delete(transactionItems).where(eq(transactionItems.transactionId, tx.id));
+    }
     await db.delete(transactions).where(eq(transactions.counterpartyId, id));
     await db.delete(counterparties).where(eq(counterparties.id, id));
+  }
+
+  async getProducts(): Promise<Product[]> {
+    return db.select().from(products).orderBy(products.name);
+  }
+
+  async getProductsWithStock(): Promise<ProductWithStock[]> {
+    const result = await db.execute(sql`
+      SELECT p.*,
+        COALESCE(
+          (SELECT SUM(CASE
+            WHEN t.tx_type IN ('purchase') THEN ti.quantity
+            WHEN t.tx_type IN ('sale') THEN -ti.quantity
+            ELSE 0
+          END)
+          FROM transaction_items ti
+          JOIN transactions t ON t.id = ti.transaction_id
+          WHERE ti.product_id = p.id
+          ), 0
+        ) as current_stock
+      FROM products p
+      WHERE p.is_active = true
+      ORDER BY p.name
+    `);
+    return result.rows.map((r: any) => ({
+      ...r,
+      isActive: r.is_active,
+      createdAt: r.created_at,
+      currentStock: String(r.current_stock),
+    })) as ProductWithStock[];
+  }
+
+  async createProduct(data: InsertProduct): Promise<Product> {
+    const [created] = await db.insert(products).values(data).returning();
+    return created;
+  }
+
+  async updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product> {
+    const [updated] = await db.update(products).set(data).where(eq(products.id, id)).returning();
+    if (!updated) throw new Error("Ürün bulunamadı");
+    return updated;
+  }
+
+  async createTransactionWithItems(
+    data: InsertTransaction,
+    items: { productId: string; quantity: string; unitPrice?: string }[]
+  ): Promise<Transaction> {
+    const [tx] = await db.insert(transactions).values(data).returning();
+
+    if (items.length > 0) {
+      const itemValues = items.map(item => ({
+        transactionId: tx.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice || null,
+      }));
+      await db.insert(transactionItems).values(itemValues);
+    }
+
+    return tx;
+  }
+
+  async getTransactionItems(transactionId: string): Promise<TransactionItemWithProduct[]> {
+    const result = await db.execute(sql`
+      SELECT ti.*, p.name as product_name, p.unit as product_unit
+      FROM transaction_items ti
+      JOIN products p ON p.id = ti.product_id
+      WHERE ti.transaction_id = ${transactionId}
+      ORDER BY ti.created_at
+    `);
+    return result.rows.map((r: any) => ({
+      ...r,
+      transactionId: r.transaction_id,
+      productId: r.product_id,
+      unitPrice: r.unit_price,
+      createdAt: r.created_at,
+      productName: r.product_name,
+      productUnit: r.product_unit,
+    })) as TransactionItemWithProduct[];
   }
 
   async getDailyReport(date: string) {

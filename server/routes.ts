@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCounterpartySchema, insertTransactionSchema } from "@shared/schema";
+import { insertCounterpartySchema, insertTransactionSchema, insertProductSchema } from "@shared/schema";
 import { z } from "zod";
 import { generateCounterpartyPDF, generateDailyReportPDF } from "./pdf";
 
@@ -131,13 +131,39 @@ export async function registerRoutes(
 
   app.post("/api/transactions", async (req, res) => {
     try {
-      const parsed = insertTransactionSchema.parse(req.body);
+      const { items, ...txData } = req.body;
+      const parsed = insertTransactionSchema.parse(txData);
       const amount = parseFloat(parsed.amount);
       if (isNaN(amount) || amount <= 0) {
         return res.status(400).json({ message: "Tutar sıfırdan büyük olmalı" });
       }
-      const created = await storage.createTransaction(parsed);
-      res.status(201).json(created);
+
+      const itemSchema = z.array(z.object({
+        productId: z.string().uuid(),
+        quantity: z.string(),
+        unitPrice: z.string().optional(),
+      })).optional();
+
+      const parsedItems = itemSchema.parse(items) || [];
+
+      if ((parsed.txType === "sale" || parsed.txType === "purchase") && parsedItems.length > 0) {
+        if (parsed.txType === "sale") {
+          const stockData = await storage.getProductsWithStock();
+          for (const item of parsedItems) {
+            const product = stockData.find(p => p.id === item.productId);
+            if (product && parseFloat(product.currentStock) < parseFloat(item.quantity)) {
+              return res.status(400).json({
+                message: `${product.name} için yeterli stok yok. Mevcut: ${product.currentStock} ${product.unit}`
+              });
+            }
+          }
+        }
+        const created = await storage.createTransactionWithItems(parsed, parsedItems);
+        res.status(201).json(created);
+      } else {
+        const created = await storage.createTransaction(parsed);
+        res.status(201).json(created);
+      }
     } catch (e: any) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
@@ -275,6 +301,65 @@ export async function registerRoutes(
       }
       const report = await storage.getMonthlyReport(year, month);
       res.json(report);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/products", async (_req, res) => {
+    try {
+      const list = await storage.getProducts();
+      res.json(list);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/stock", async (_req, res) => {
+    try {
+      const list = await storage.getProductsWithStock();
+      res.json(list);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/products", async (req, res) => {
+    try {
+      const parsed = insertProductSchema.parse(req.body);
+      if (!parsed.name?.trim()) return res.status(400).json({ message: "Ürün adı gerekli" });
+      const created = await storage.createProduct(parsed);
+      res.status(201).json(created);
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/products/:id", async (req, res) => {
+    try {
+      const updateSchema = z.object({
+        name: z.string().min(1).optional(),
+        unit: z.enum(["kg", "kasa", "adet"]).optional(),
+        isActive: z.boolean().optional(),
+      });
+      const parsed = updateSchema.parse(req.body);
+      const updated = await storage.updateProduct(req.params.id, parsed);
+      res.json(updated);
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/transactions/:id/items", async (req, res) => {
+    try {
+      const items = await storage.getTransactionItems(req.params.id);
+      res.json(items);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

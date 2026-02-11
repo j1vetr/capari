@@ -4,7 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LayoutDashboard, Plus, Users, FileBarChart, Fish, LogOut, Search, Store, Truck } from "lucide-react";
+import { LayoutDashboard, Plus, Users, FileBarChart, Fish, LogOut, Search, Store, Truck, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,12 +17,14 @@ import QuickTransaction from "@/pages/quick-transaction";
 import Counterparties from "@/pages/counterparties";
 import CounterpartyDetail from "@/pages/counterparty-detail";
 import Reports from "@/pages/reports";
+import Stock from "@/pages/stock";
 import Login from "@/pages/login";
 
 const NAV_ITEMS = [
   { path: "/", label: "Ana Sayfa", icon: LayoutDashboard, match: (l: string) => l === "/" },
   { path: "/quick", label: "İşlem Ekle", icon: Plus, match: (l: string) => l.startsWith("/quick") },
   { path: "/counterparties", label: "Cariler", icon: Users, match: (l: string) => l.startsWith("/counterparties") },
+  { path: "/stock", label: "Stok", icon: Package, match: (l: string) => l.startsWith("/stock") },
   { path: "/reports", label: "Raporlar", icon: FileBarChart, match: (l: string) => l.startsWith("/reports") },
 ];
 
@@ -31,7 +33,7 @@ function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white dark:bg-card border-gray-200 dark:border-card-border safe-area-bottom" data-testid="nav-bottom">
-      <div className="max-w-lg mx-auto grid grid-cols-4">
+      <div className="max-w-lg mx-auto grid grid-cols-5">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = item.match(location);
@@ -64,6 +66,7 @@ function Router() {
       <Route path="/quick" component={QuickTransaction} />
       <Route path="/counterparties" component={Counterparties} />
       <Route path="/counterparties/:id" component={CounterpartyDetail} />
+      <Route path="/stock" component={Stock} />
       <Route path="/reports" component={Reports} />
       <Route component={NotFound} />
     </Switch>
