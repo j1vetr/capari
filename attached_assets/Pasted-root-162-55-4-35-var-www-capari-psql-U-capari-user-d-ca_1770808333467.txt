@@ -1,0 +1,88 @@
+root@162-55-4-35:/var/www/capari# psql -U capari_user -d capari_db -h localhost
+Password for user capari_user:
+psql (14.20 (Ubuntu 14.20-0ubuntu0.22.04.1))
+Type "help" for help.
+
+capari_db=> CREATE TABLE IF NOT EXISTS counterparties (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT,
+  notes TEXT,
+  invoiced BOOLEAN DEFAULT false,
+  tax_number TEXT,
+  tax_office TEXT,
+  company_title TEXT,
+  address TEXT,
+  payment_due_day INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  counterparty_id UUID NOT NULL REFERENCES counterparties(id),
+  tx_type TEXT NOT NULL,
+  amount NUMERIC(12,2) NOT NULL,
+  description TEXT,
+  tx_date TIMESTAMP DEFAULT NOW(),
+  reversed_of UUID
+);
+
+CREATE TABLE IF NOT EXISTS session (
+  sid VARCHAR NOT NULL PRIMARY KEY,
+  sess JSON NOT NULL,
+  expire TIMESTAMP(6) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_expire ON session(expire);
+
+\q
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+root@162-55-4-35:/var/www/capari# pm2 restart capari
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [capari](ids: [ 21 ])
+[PM2] [capari](21) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 10 │ adegloba           │ cluster  │ 0    │ online    │ 0%       │ 43.0mb   │
+│ 5  │ besindegerim       │ cluster  │ 0    │ online    │ 0%       │ 59.8mb   │
+│ 21 │ capari             │ cluster  │ 1    │ online    │ 0%       │ 40.5mb   │
+│ 8  │ emerald            │ fork     │ 0    │ online    │ 0%       │ 24.0mb   │
+│ 6  │ escapetable        │ cluster  │ 0    │ online    │ 0%       │ 42.6mb   │
+│ 18 │ gokalaf            │ fork     │ 4    │ online    │ 0%       │ 117.7mb  │
+│ 17 │ hank               │ fork     │ 29   │ online    │ 0%       │ 121.4mb  │
+│ 11 │ kimdinliyor        │ cluster  │ 0    │ online    │ 0%       │ 49.3mb   │
+│ 16 │ lacivert-teknoloji │ cluster  │ 7    │ online    │ 0%       │ 36.6mb   │
+│ 2  │ maison-nomade-con… │ fork     │ 0    │ online    │ 0%       │ 30.0mb   │
+│ 4  │ nasiloldu          │ fork     │ 0    │ online    │ 0%       │ 58.8mb   │
+│ 19 │ ozelilgi           │ fork     │ 7    │ online    │ 0%       │ 33.4mb   │
+│ 3  │ postakod           │ fork     │ 0    │ online    │ 0%       │ 76.3mb   │
+│ 7  │ toov               │ cluster  │ 0    │ online    │ 0%       │ 44.0mb   │
+│ 15 │ tutturduk          │ fork     │ 48   │ online    │ 0%       │ 94.7mb   │
+│ 0  │ watermarktoo-back… │ cluster  │ 0    │ online    │ 0%       │ 46.8mb   │
+│ 1  │ yosun-restaurant   │ fork     │ 234… │ online    │ 0%       │ 7.9mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@162-55-4-35:/var/www/capari# npm run db:push
+
+> rest-express@1.0.0 db:push
+> drizzle-kit push
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/var/www/capari/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+TypeError: Cannot read properties of undefined (reading 'searchParams')
+    at parse (/var/www/capari/node_modules/pg-connection-string/index.js:39:30)
+    at new ConnectionParameters (/var/www/capari/node_modules/pg/lib/connection-parameters.js:56:42)
+    at new Client (/var/www/capari/node_modules/pg/lib/client.js:18:33)
+    at BoundPool.newClient (/var/www/capari/node_modules/pg-pool/index.js:233:20)
+    at BoundPool.connect (/var/www/capari/node_modules/pg-pool/index.js:227:10)
+    at BoundPool.query (/var/www/capari/node_modules/pg-pool/index.js:411:10)
+    at Object.query (/var/www/capari/node_modules/drizzle-kit/bin.cjs:80622:39)
+    at fromDatabase2 (/var/www/capari/node_modules/drizzle-kit/bin.cjs:19276:34)
+    at pgPushIntrospect (/var/www/capari/node_modules/drizzle-kit/bin.cjs:83692:9)
+    at pgPush (/var/www/capari/node_modules/drizzle-kit/bin.cjs:84370:41)
+root@162-55-4-35:/var/www/capari#
