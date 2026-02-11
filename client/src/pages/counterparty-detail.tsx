@@ -285,7 +285,7 @@ export default function CounterpartyDetail() {
   const handleWhatsAppDetailed = async () => {
     if (!party || !txList) return;
     if (!party.phone) {
-      toast({ title: "Telefon numarasi gerekli", description: "Detayli cari gondermek icin telefon numarasi olmali.", variant: "destructive" });
+      toast({ title: "Telefon numarası gerekli", description: "Detaylı cari göndermek için telefon numarası olmalı.", variant: "destructive" });
       return;
     }
     setPdfSending(true);
@@ -300,16 +300,16 @@ export default function CounterpartyDetail() {
       const pdfRes = await apiRequest("POST", "/api/whatsapp/send-pdf", {
         receiver: party.phone,
         counterpartyId: party.id,
-        message: `${party.name} - Detayli Cari Hesap Ekstre`,
+        message: `${party.name} - Detaylı Cari Hesap Ekstre`,
       });
       const pdfResult = await pdfRes.json();
       if (pdfResult.success) {
-        toast({ title: "Detayli cari WhatsApp ile gonderildi" });
+        toast({ title: "Detaylı cari WhatsApp ile gönderildi" });
       } else {
-        toast({ title: "PDF gonderilemedi", description: pdfResult.message, variant: "destructive" });
+        toast({ title: "PDF gönderilemedi", description: pdfResult.message, variant: "destructive" });
       }
     } catch (e: any) {
-      toast({ title: "Gonderilemedi", description: e.message, variant: "destructive" });
+      toast({ title: "Gönderilemedi", description: e.message, variant: "destructive" });
     } finally {
       setPdfSending(false);
     }
@@ -495,21 +495,21 @@ export default function CounterpartyDetail() {
           <div className="grid grid-cols-3 gap-2">
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={() => setShowAddTx(true)} data-testid="button-add-tx">
               <Plus className="w-4 h-4" />
-              Islem Ekle
+              İşlem Ekle
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleExportPDF} data-testid="button-export-pdf">
               <Download className="w-4 h-4" />
-              PDF Indir
+              PDF İndir
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsApp} disabled={whatsappSending} data-testid="button-whatsapp">
               <MessageCircle className="w-4 h-4" />
-              {whatsappSending ? "Gonderiyor..." : "Hizli Cari WhatsApp"}
+              {whatsappSending ? "Gönderiliyor..." : "Hızlı Cari WhatsApp"}
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsAppDetailed} disabled={pdfSending || !party?.phone} data-testid="button-whatsapp-pdf">
               <FileText className="w-4 h-4" />
-              {pdfSending ? "Gonderiliyor..." : "Detayli Cari WhatsApp"}
+              {pdfSending ? "Gönderiliyor..." : "Detaylı Cari WhatsApp"}
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1 text-red-500 dark:text-red-400" onClick={() => setConfirmDelete(true)} data-testid="button-delete-counterparty">
               <Trash2 className="w-4 h-4" />
