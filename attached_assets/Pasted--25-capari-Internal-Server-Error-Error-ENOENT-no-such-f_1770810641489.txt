@@ -1,0 +1,33 @@
+
+25|capari  | Internal Server Error: Error: ENOENT: no such file or directory, open '/var/www/capari/dist/table.sql'
+25|capari  |     at async open (node:internal/fs/promises:639:25)
+25|capari  |     at async Object.readFile (node:internal/fs/promises:1246:14)
+25|capari  |     at async n._rawEnsureSessionStoreTable (/var/www/capari/dist/index.cjs:74:28756)
+25|capari  |     at async n._asyncQuery (/var/www/capari/dist/index.cjs:74:29841) {
+25|capari  |   errno: -2,
+25|capari  |   code: 'ENOENT',
+25|capari  |   syscall: 'open',
+25|capari  |   path: '/var/www/capari/dist/table.sql'
+25|capari  | }
+25|capari  | Error: ENOENT: no such file or directory, open '/var/www/capari/dist/table.sql'
+25|capari  |     at async open (node:internal/fs/promises:639:25)
+25|capari  |     at async Object.readFile (node:internal/fs/promises:1246:14)
+25|capari  |     at async n._rawEnsureSessionStoreTable (/var/www/capari/dist/index.cjs:74:28756)
+25|capari  |     at async n._asyncQuery (/var/www/capari/dist/index.cjs:74:29841)
+
+/root/.pm2/logs/capari-out-25.log last 15 lines:
+25|capari  | 2:49:15 PM [express] GET /api/counterparties/99bfcb95-b722-444c-bde2-4885e1098b2b 401 in 1ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:15 PM [express] GET /api/counterparties/99bfcb95-b722-444c-bde2-4885e1098b2b/transactions 401 in 1ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:19 PM [express] GET /api/dashboard 401 in 1ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:19 PM [express] GET /api/stats 401 in 1ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:21 PM [express] GET /api/auth/check 304 in 0ms :: {"authenticated":false}
+25|capari  | 2:49:24 PM [express] POST /api/auth/login 200 in 0ms :: {"ok":true}
+25|capari  | 2:49:24 PM [express] GET /api/dashboard 401 in 0ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:24 PM [express] GET /api/stats 401 in 0ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:25 PM [express] GET /api/counterparties 401 in 1ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:30 PM [express] GET /api/dashboard 401 in 0ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:30 PM [express] GET /api/stats 401 in 1ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:32 PM [express] GET /api/counterparties 401 in 0ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:34 PM [express] GET /api/counterparties 401 in 0ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:44 PM [express] POST /api/counterparties 401 in 1ms :: {"message":"Giriş gerekli"}
+25|capari  | 2:49:45 PM [express] POST /api/counterparties 401 in 1ms :: {"message":"Giriş gerekli"}

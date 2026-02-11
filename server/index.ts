@@ -39,7 +39,7 @@ app.use(
     store: new PgStore({
       pool: pool,
       tableName: "session",
-      createTableIfMissing: true,
+      createTableIfMissing: false,
     }),
     secret: process.env.SESSION_SECRET || "capari-balik-secret-key",
     resave: false,
@@ -90,6 +90,21 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+      ) WITH (OIDS=FALSE);
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+    `);
+  } finally {
+    client.release();
+  }
+
   const { seedDatabase } = await import("./seed");
   try {
     await seedDatabase();
