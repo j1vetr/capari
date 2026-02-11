@@ -93,6 +93,10 @@ app.use((req, res, next) => {
         pool: pool,
         tableName: "session",
         createTableIfMissing: false,
+        pruneSessionInterval: 60 * 15,
+        errorLog: (err: Error) => {
+          console.error("Session store error:", err.message);
+        },
       }),
       secret: process.env.SESSION_SECRET || "capari-balik-secret-key",
       resave: false,
