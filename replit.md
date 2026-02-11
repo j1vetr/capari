@@ -28,13 +28,14 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - WhatsApp share with pre-filled message
 
 ## Data Model
-- **counterparties**: id (uuid), type (customer|supplier), name, phone, notes
+- **counterparties**: id (uuid), type (customer|supplier), name, phone, notes, invoiced (boolean, default false)
 - **transactions**: id (uuid), counterparty_id (fk), tx_type (sale|collection|purchase|payment), amount (numeric 12,2), description, tx_date, reversed_of (uuid nullable)
 
 ## Business Rules
 - Customer balance = sum(sale) - sum(collection) → positive = customer owes us
 - Supplier balance = sum(purchase) - sum(payment) → positive = we owe supplier
 - No deletion: "Düzelt" creates compensating reverse transaction
+- Invoiced firms (faturalı): 1% KDV added separately on sale/purchase transactions
 
 ## API Endpoints
 - GET /api/dashboard - Summary cards + chart data

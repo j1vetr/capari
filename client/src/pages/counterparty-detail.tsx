@@ -16,7 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Phone, MessageCircle, Plus, Store, Truck,
   RotateCcw, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Download, Check, AlertCircle
+  Download, Check, AlertCircle, FileText
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems } from "@/lib/formatters";
 import { ChevronDown, Fish } from "lucide-react";
@@ -75,6 +75,9 @@ export default function CounterpartyDetail() {
     },
   });
 
+  const isSaleOrPurchaseTx = txType === "sale" || txType === "purchase";
+  const detailKdvAmount = party?.invoiced && isSaleOrPurchaseTx ? (parseFloat(amount) || 0) * 0.01 : 0;
+
   const handleSaveTx = () => {
     if (!txType || !amount) return;
     const num = parseFloat(amount);
@@ -82,11 +85,15 @@ export default function CounterpartyDetail() {
       toast({ title: "Geçersiz tutar", variant: "destructive" });
       return;
     }
+    const totalWithKdv = num + (party?.invoiced && isSaleOrPurchaseTx ? num * 0.01 : 0);
+    const descWithKdv = detailKdvAmount > 0
+      ? `${description || ""} [KDV %1: ${formatCurrency(detailKdvAmount)}]`.trim()
+      : description || undefined;
     createTxMutation.mutate({
       counterpartyId: params.id,
       txType,
-      amount: num.toFixed(2),
-      description: description || undefined,
+      amount: totalWithKdv.toFixed(2),
+      description: descWithKdv,
       txDate: new Date().toISOString().split("T")[0],
     });
   };
@@ -178,9 +185,17 @@ export default function CounterpartyDetail() {
                       : <Truck className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
                   </div>
                   <div>
-                    <Badge variant="secondary" className="text-[10px] mb-1">
-                      {party.type === "customer" ? "Müşteri" : "Tedarikçi"}
-                    </Badge>
+                    <div className="flex items-center gap-1 mb-1 flex-wrap">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {party.type === "customer" ? "Müşteri" : "Tedarikçi"}
+                      </Badge>
+                      {party.invoiced && (
+                        <Badge variant="secondary" className="text-[10px] gap-0.5">
+                          <FileText className="w-2.5 h-2.5" />
+                          Faturalı
+                        </Badge>
+                      )}
+                    </div>
                     {party.phone && (
                       <div className="flex items-center gap-1">
                         <Phone className="w-3 h-3 text-gray-400 dark:text-muted-foreground" />
@@ -428,6 +443,26 @@ export default function CounterpartyDetail() {
                 data-testid="input-dialog-description"
               />
             </div>
+            {detailKdvAmount > 0 && (
+              <div className="flex flex-col gap-1.5 p-3 rounded-md bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-gray-500 dark:text-muted-foreground">Ara Toplam</span>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-foreground">{formatCurrency(parseFloat(amount) || 0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-gray-500 dark:text-muted-foreground flex items-center gap-1">
+                    <FileText className="w-3 h-3" />
+                    KDV (%1)
+                  </span>
+                  <span className="text-sm font-semibold text-sky-600 dark:text-sky-400">{formatCurrency(detailKdvAmount)}</span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-gray-700 dark:text-foreground">Toplam</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency((parseFloat(amount) || 0) + detailKdvAmount)}</span>
+                </div>
+              </div>
+            )}
             <Button
               onClick={handleSaveTx}
               disabled={!txType || !amount || parseFloat(amount) <= 0 || createTxMutation.isPending}

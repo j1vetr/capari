@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, numeric, date, timestamp, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, date, timestamp, uuid, index, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -9,6 +9,7 @@ export const counterparties = pgTable("counterparties", {
   name: text("name").notNull(),
   phone: text("phone"),
   notes: text("notes"),
+  invoiced: boolean("invoiced").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

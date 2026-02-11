@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Users, Truck, Store, ChevronRight, Phone, UserPlus } from "lucide-react";
+import { Search, Users, Truck, Store, ChevronRight, Phone, UserPlus, FileText } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { CounterpartyWithBalance } from "@shared/schema";
 
@@ -134,7 +134,15 @@ export default function Counterparties() {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-gray-900 dark:text-foreground truncate">{p.name}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-foreground truncate">{p.name}</p>
+                    {p.invoiced && (
+                      <Badge variant="secondary" className="text-[9px] gap-0.5 px-1.5">
+                        <FileText className="w-2.5 h-2.5" />
+                        Faturalı
+                      </Badge>
+                    )}
+                  </div>
                   {p.phone && (
                     <div className="flex items-center gap-1 mt-0.5">
                       <Phone className="w-3 h-3 text-gray-400 dark:text-muted-foreground" />

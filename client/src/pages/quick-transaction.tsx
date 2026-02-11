@@ -9,11 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Search, Plus, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2
+  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText
 } from "lucide-react";
 import { formatCurrency, txTypeLabel } from "@/lib/formatters";
 import type { CounterpartyWithBalance } from "@shared/schema";
@@ -67,6 +68,7 @@ export default function QuickTransaction() {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"customer" | "supplier">("customer");
   const [newPhone, setNewPhone] = useState("");
+  const [newInvoiced, setNewInvoiced] = useState(false);
 
   const isSaleOrPurchase = txType === "sale" || txType === "purchase";
 
@@ -85,7 +87,7 @@ export default function QuickTransaction() {
   ) || [];
 
   const createPartyMutation = useMutation({
-    mutationFn: async (data: { name: string; type: string; phone?: string }) => {
+    mutationFn: async (data: { name: string; type: string; phone?: string; invoiced?: boolean }) => {
       const res = await apiRequest("POST", "/api/counterparties", data);
       return res.json();
     },
@@ -95,6 +97,7 @@ export default function QuickTransaction() {
       setShowAddModal(false);
       setNewName("");
       setNewPhone("");
+      setNewInvoiced(false);
       toast({ title: "Yeni cari eklendi" });
     },
   });
@@ -137,15 +140,20 @@ export default function QuickTransaction() {
     return q * p;
   };
 
-  const computedTotal = isSaleOrPurchase
+  const subtotal = isSaleOrPurchase
     ? lineItems.reduce((s, li) => s + lineItemTotal(li), 0)
     : parseFloat(directAmount) || 0;
+
+  const isInvoiced = selectedParty?.invoiced === true;
+  const kdvRate = 0.01;
+  const kdvAmount = isInvoiced && isSaleOrPurchase ? subtotal * kdvRate : 0;
+  const computedTotal = subtotal + kdvAmount;
 
   const computedDescription = isSaleOrPurchase
     ? lineItems
       .filter((li) => li.product && lineItemTotal(li) > 0)
       .map((li) => `${li.product} ${li.quantity}kg x ${formatCurrency(li.unitPrice)}`)
-      .join(", ")
+      .join(", ") + (kdvAmount > 0 ? ` [KDV %1: ${formatCurrency(kdvAmount)}]` : "")
     : directDescription;
 
   const canSubmit = selectedParty && txType && computedTotal > 0;
@@ -244,6 +252,12 @@ export default function QuickTransaction() {
                         <Badge variant="secondary" className="text-[10px]">
                           {p.type === "customer" ? "Müşteri" : "Tedarikçi"}
                         </Badge>
+                        {p.invoiced && (
+                          <Badge variant="secondary" className="text-[9px] gap-0.5 px-1.5">
+                            <FileText className="w-2.5 h-2.5" />
+                            Faturalı
+                          </Badge>
+                        )}
                         {p.phone && <span className="text-[11px] text-gray-400 dark:text-muted-foreground">{p.phone}</span>}
                       </div>
                     </div>
@@ -285,7 +299,15 @@ export default function QuickTransaction() {
                   : <Truck className="w-5 h-5 text-amber-600 dark:text-amber-400" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-gray-900 dark:text-foreground truncate">{selectedParty.name}</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-bold text-sm text-gray-900 dark:text-foreground truncate">{selectedParty.name}</p>
+                  {selectedParty.invoiced && (
+                    <Badge variant="secondary" className="text-[10px] gap-0.5">
+                      <FileText className="w-2.5 h-2.5" />
+                      Faturalı
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 dark:text-muted-foreground">
                   {selectedParty.type === "customer" ? "Müşteri" : "Tedarikçi"}
                   {" · Bakiye: "}
@@ -489,6 +511,22 @@ export default function QuickTransaction() {
                           <Separator className="my-1" />
                         </>
                       )}
+                      {kdvAmount > 0 && (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-500 dark:text-muted-foreground">Ara Toplam</span>
+                            <span className="text-sm font-semibold text-gray-700 dark:text-foreground">{formatCurrency(subtotal)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-500 dark:text-muted-foreground flex items-center gap-1">
+                              <FileText className="w-3 h-3" />
+                              KDV (%1)
+                            </span>
+                            <span className="text-sm font-semibold text-sky-600 dark:text-sky-400">{formatCurrency(kdvAmount)}</span>
+                          </div>
+                          <Separator className="my-1" />
+                        </>
+                      )}
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-bold text-gray-700 dark:text-foreground">Toplam</span>
                         <span className="text-xl font-bold text-gray-900 dark:text-foreground">{formatCurrency(computedTotal)}</span>
@@ -566,8 +604,22 @@ export default function QuickTransaction() {
               <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">Telefon (opsiyonel)</Label>
               <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="0555 123 4567" type="tel" data-testid="input-new-phone" />
             </div>
+            <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-gray-200 dark:border-muted">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-gray-500 dark:text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-foreground">Faturalı Firma</p>
+                  <p className="text-[11px] text-gray-400 dark:text-muted-foreground">Faturalı ise %1 KDV ayrıca eklenir</p>
+                </div>
+              </div>
+              <Switch
+                checked={newInvoiced}
+                onCheckedChange={setNewInvoiced}
+                data-testid="switch-invoiced"
+              />
+            </div>
             <Button
-              onClick={() => createPartyMutation.mutate({ name: newName, type: newType, phone: newPhone || undefined })}
+              onClick={() => createPartyMutation.mutate({ name: newName, type: newType, phone: newPhone || undefined, invoiced: newInvoiced })}
               disabled={!newName.trim() || createPartyMutation.isPending}
               className="h-12 font-semibold"
               data-testid="button-save-counterparty"
