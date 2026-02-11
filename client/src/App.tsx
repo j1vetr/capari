@@ -1,15 +1,19 @@
+import { useState, useEffect } from "react";
 import { Switch, Route, useLocation, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LayoutDashboard, Plus, Users, FileBarChart, Fish } from "lucide-react";
+import { LayoutDashboard, Plus, Users, FileBarChart, Fish, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import QuickTransaction from "@/pages/quick-transaction";
 import Counterparties from "@/pages/counterparties";
 import CounterpartyDetail from "@/pages/counterparty-detail";
 import Reports from "@/pages/reports";
+import Login from "@/pages/login";
 
 const NAV_ITEMS = [
   { path: "/", label: "Ana Sayfa", icon: LayoutDashboard, match: (l: string) => l === "/" },
@@ -62,33 +66,83 @@ function Router() {
   );
 }
 
+function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    queryClient.clear();
+    onLogout();
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-background">
+      <header className="sticky top-0 z-40 bg-white dark:bg-card border-b border-gray-100 dark:border-card-border">
+        <div className="max-w-lg mx-auto flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-center w-9 h-9 rounded-md bg-sky-600 text-white">
+              <Fish className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold tracking-tight leading-tight text-gray-900 dark:text-foreground">Çapari Balık</h1>
+              <p className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground tracking-wider uppercase">Dağıtım</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground">Çevrimiçi</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4 text-gray-400" />
+            </Button>
+          </div>
+        </div>
+      </header>
+      <main className="pb-20">
+        <Router />
+      </main>
+      <BottomNav />
+    </div>
+  );
+}
+
 function App() {
+  const [authState, setAuthState] = useState<"loading" | "login" | "authenticated">("loading");
+
+  useEffect(() => {
+    fetch("/api/auth/check", { credentials: "include" })
+      .then((res) => res.json())
+      .then((data) => {
+        setAuthState(data.authenticated ? "authenticated" : "login");
+      })
+      .catch(() => {
+        setAuthState("login");
+      });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-background">
-          <header className="sticky top-0 z-40 bg-white dark:bg-card border-b border-gray-100 dark:border-card-border">
-            <div className="max-w-lg mx-auto flex items-center justify-between gap-3 px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-center justify-center w-9 h-9 rounded-md bg-sky-600 text-white">
-                  <Fish className="w-5 h-5" />
-                </div>
-                <div>
-                  <h1 className="text-base font-bold tracking-tight leading-tight text-gray-900 dark:text-foreground">Çapari Balık</h1>
-                  <p className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground tracking-wider uppercase">Dağıtım</p>
-                </div>
+        {authState === "loading" && (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-background">
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-600 text-white">
+                <Fish className="w-8 h-8" />
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground">Çevrimiçi</span>
-              </div>
+              <Skeleton className="h-4 w-32" />
             </div>
-          </header>
-          <main className="pb-20">
-            <Router />
-          </main>
-          <BottomNav />
-        </div>
+          </div>
+        )}
+        {authState === "login" && (
+          <Login onSuccess={() => setAuthState("authenticated")} />
+        )}
+        {authState === "authenticated" && (
+          <AuthenticatedApp onLogout={() => setAuthState("login")} />
+        )}
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

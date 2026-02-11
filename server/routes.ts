@@ -1,14 +1,45 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCounterpartySchema, insertTransactionSchema } from "@shared/schema";
 import { z } from "zod";
 import { generateCounterpartyPDF, generateDailyReportPDF } from "./pdf";
 
+const APP_PASSWORD = process.env.LOGIN_PASSWORD || "capari2024";
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.authenticated) {
+    return next();
+  }
+  res.status(401).json({ message: "Giriş gerekli" });
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  app.post("/api/auth/login", (req, res) => {
+    const { password } = req.body;
+    if (password === APP_PASSWORD) {
+      req.session.authenticated = true;
+      res.json({ ok: true });
+    } else {
+      res.status(401).json({ message: "Şifre yanlış" });
+    }
+  });
+
+  app.get("/api/auth/check", (req, res) => {
+    res.json({ authenticated: !!req.session?.authenticated });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy(() => {
+      res.json({ ok: true });
+    });
+  });
+
+  app.use("/api", requireAuth);
 
   app.get("/api/dashboard", async (_req, res) => {
     try {

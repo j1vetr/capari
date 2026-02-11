@@ -20,6 +20,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - `client/src/lib/formatters.ts` - Currency/date formatting utilities (Turkish locale)
 
 ## Key Features
+- **Login screen**: Session-based authentication with password (LOGIN_PASSWORD env var, default: capari2024). 30-day session cookie. Logout button in header.
 - Dashboard with summary cards (receivables, payables, daily totals) + 7-day sales chart
 - Quick Transaction flow: search counterparty → select type → enter amount → save
 - Counterparty list with tabs (Müşteriler/Tedarikçiler) and balance display
@@ -38,6 +39,9 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - Invoiced firms (faturalı): 1% KDV added separately on sale/purchase transactions
 
 ## API Endpoints
+- POST /api/auth/login - Login with password
+- GET /api/auth/check - Check auth status
+- POST /api/auth/logout - Logout
 - GET /api/dashboard - Summary cards + chart data
 - GET /api/stats - Statistics (top debtors, creditors, upcoming payments, counters)
 - GET /api/counterparties - List with computed balances
