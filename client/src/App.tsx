@@ -4,9 +4,13 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LayoutDashboard, Plus, Users, FileBarChart, Fish, LogOut } from "lucide-react";
+import { LayoutDashboard, Plus, Users, FileBarChart, Fish, LogOut, Search, Store, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { formatCurrency } from "@/lib/formatters";
+import type { CounterpartyWithBalance } from "@shared/schema";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import QuickTransaction from "@/pages/quick-transaction";
@@ -67,6 +71,33 @@ function Router() {
 }
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+  const [, navigate] = useLocation();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<CounterpartyWithBalance[]>([]);
+  const [allCounterparties, setAllCounterparties] = useState<CounterpartyWithBalance[]>([]);
+
+  useEffect(() => {
+    if (searchOpen && allCounterparties.length === 0) {
+      fetch("/api/counterparties", { credentials: "include" })
+        .then(r => r.json())
+        .then(data => setAllCounterparties(data))
+        .catch(() => {});
+    }
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(allCounterparties.slice(0, 10));
+    } else {
+      const q = searchQuery.toLowerCase();
+      setSearchResults(allCounterparties.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.phone && c.phone.includes(q))
+      ).slice(0, 10));
+    }
+  }, [searchQuery, allCounterparties]);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     queryClient.clear();
@@ -87,6 +118,14 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => { setSearchOpen(true); setSearchQuery(""); }}
+              data-testid="button-global-search"
+            >
+              <Search className="w-4 h-4 text-gray-500" />
+            </Button>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-[10px] font-medium text-gray-400 dark:text-muted-foreground">Çevrimiçi</span>
@@ -102,6 +141,48 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           </div>
         </div>
       </header>
+
+      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cari Ara</DialogTitle>
+            <DialogDescription>Ad veya telefon numarasıyla arayın</DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Cari adı veya telefon..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
+            data-testid="input-global-search"
+          />
+          <div className="flex flex-col gap-1.5 mt-2">
+            {searchResults.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-muted-foreground text-center py-4">Sonuç bulunamadı</p>
+            )}
+            {searchResults.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-3 p-2.5 rounded-md cursor-pointer hover-elevate"
+                onClick={() => { setSearchOpen(false); navigate(`/counterparties/${c.id}`); }}
+                data-testid={`search-result-${c.id}`}
+              >
+                <div className={`flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0 ${c.type === "customer" ? "bg-sky-50 dark:bg-sky-950/30" : "bg-amber-50 dark:bg-amber-950/30"}`}>
+                  {c.type === "customer" ? <Store className="w-4 h-4 text-sky-600 dark:text-sky-400" /> : <Truck className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-foreground truncate">{c.name}</p>
+                  <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                    {c.type === "customer" ? "Müşteri" : "Tedarikçi"}{c.phone ? ` - ${c.phone}` : ""}
+                  </p>
+                </div>
+                <span className={`text-xs font-bold flex-shrink-0 ${parseFloat(c.balance) > 0 ? "text-red-600 dark:text-red-400" : parseFloat(c.balance) < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-muted-foreground"}`}>
+                  {formatCurrency(c.balance)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
       <main className="pb-20">
         <Router />
       </main>

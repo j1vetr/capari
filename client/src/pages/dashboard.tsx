@@ -11,7 +11,7 @@ import {
   Crown, AlertTriangle, Clock, BarChart3, Store, Truck
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg } from "@/lib/formatters";
-import type { DashboardSummary, StatsData } from "@shared/schema";
+import type { DashboardSummary, StatsData, TransactionWithCounterparty } from "@shared/schema";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 
 function StatCardLarge({ title, value, subtitle, icon: Icon, bgClass, iconClass, isLoading }: {
@@ -85,6 +85,9 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<StatsData>({
     queryKey: ["/api/stats"],
   });
+  const { data: recentTxs, isLoading: recentLoading } = useQuery<TransactionWithCounterparty[]>({
+    queryKey: ["/api/recent-transactions"],
+  });
 
   const chartData = data?.last7DaysSales?.map((d, i, arr) => ({
     date: new Date(d.date).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" }),
@@ -111,6 +114,24 @@ export default function Dashboard() {
           <span className="text-[11px] font-medium">{today}</span>
         </div>
       </div>
+
+      {stats && stats.upcomingPayments.filter(p => p.daysLeft <= 1).length > 0 && (
+        <Card className="border-0 bg-red-50 dark:bg-red-950/20" data-testid="card-urgent-payments">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-red-700 dark:text-red-300">
+                  {stats.upcomingPayments.filter(p => p.daysLeft === 0).length > 0 ? "Bugün vadesi dolan ödemeler var!" : "Yarın vadesi dolacak ödemeler var!"}
+                </p>
+                <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5">
+                  {stats.upcomingPayments.filter(p => p.daysLeft <= 1).map(p => p.name).join(", ")}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-3">
         <StatCardLarge
@@ -211,6 +232,44 @@ export default function Dashboard() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {recentTxs && recentTxs.length > 0 && (
+        <Card data-testid="card-recent-transactions">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Son İşlemler</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-foreground">Son 10 Hareket</p>
+              </div>
+              <Badge variant="secondary" className="text-[10px]">{recentTxs.length} işlem</Badge>
+            </div>
+            <div className="flex flex-col gap-2">
+              {recentTxs.map((tx) => (
+                <div
+                  key={tx.id}
+                  className="flex items-center gap-2.5 p-2 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
+                  onClick={() => navigate(`/counterparties/${tx.counterpartyId}`)}
+                  data-testid={`row-recent-tx-${tx.id}`}
+                >
+                  <div className={`flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0 ${txTypeBg(tx.txType)}`}>
+                    {tx.txType === "sale" ? <ShoppingCart className="w-3.5 h-3.5" /> :
+                     tx.txType === "collection" ? <ArrowDownToLine className="w-3.5 h-3.5" /> :
+                     tx.txType === "purchase" ? <Banknote className="w-3.5 h-3.5" /> :
+                     <ArrowUpFromLine className="w-3.5 h-3.5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 dark:text-foreground truncate">{tx.counterpartyName}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                      {txTypeLabel(tx.txType)} - {formatDate(tx.txDate)}
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-gray-900 dark:text-foreground flex-shrink-0">{formatCurrency(tx.amount)}</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

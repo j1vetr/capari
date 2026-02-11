@@ -83,10 +83,31 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/counterparties/:id", async (req, res) => {
+    try {
+      const party = await storage.getCounterparty(req.params.id);
+      if (!party) return res.status(404).json({ message: "Cari bulunamadı" });
+      const balance = parseFloat(party.balance);
+      if (balance !== 0) {
+        return res.status(400).json({ message: "Bakiyesi sıfır olmayan cari silinemez. Önce bakiyeyi sıfırlayın." });
+      }
+      await storage.deleteCounterparty(req.params.id);
+      res.json({ message: "Cari silindi" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/counterparties/:id/transactions", async (req, res) => {
     try {
-      const txs = await storage.getTransactionsByCounterparty(req.params.id);
-      res.json(txs);
+      const { startDate, endDate, limit, offset } = req.query;
+      const result = await storage.getTransactionsByCounterparty(req.params.id, {
+        startDate: startDate as string | undefined,
+        endDate: endDate as string | undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      res.json(result);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -96,7 +117,7 @@ export async function registerRoutes(
     try {
       const party = await storage.getCounterparty(req.params.id);
       if (!party) return res.status(404).json({ message: "Bulunamadı" });
-      const txs = await storage.getTransactionsByCounterparty(req.params.id);
+      const { transactions: txs } = await storage.getTransactionsByCounterparty(req.params.id);
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${party.name}-ekstre.pdf"`);
@@ -129,6 +150,16 @@ export async function registerRoutes(
     try {
       const reversed = await storage.reverseTransaction(req.params.id);
       res.status(201).json(reversed);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/recent-transactions", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+      const txs = await storage.getRecentTransactions(limit);
+      res.json(txs);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -179,6 +210,54 @@ export async function registerRoutes(
       const doc = generateDailyReportPDF(req.params.date, report);
       doc.pipe(res);
       doc.end();
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/export/counterparties/csv", async (_req, res) => {
+    try {
+      const parties = await storage.getCounterparties();
+      const header = "Ad,Tip,Telefon,Bakiye,Faturalı,Vergi No,Vergi Dairesi,Ödeme Günü\n";
+      const rows = parties.map(p =>
+        `"${p.name}","${p.type === "customer" ? "Müşteri" : "Tedarikçi"}","${p.phone || ""}","${p.balance}","${p.invoiced ? "Evet" : "Hayır"}","${p.taxNumber || ""}","${p.taxOffice || ""}","${p.paymentDueDay || ""}"`
+      ).join("\n");
+      const bom = "\uFEFF";
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", "attachment; filename=cariler.csv");
+      res.send(bom + header + rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/export/transactions/csv", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 1000, 5000);
+      const txs = await storage.getRecentTransactions(limit);
+      const header = "Tarih,Cari,Tip,Tutar,Açıklama\n";
+      const txTypeMap: Record<string, string> = { sale: "Satış", collection: "Tahsilat", purchase: "Alım", payment: "Ödeme" };
+      const rows = txs.map(tx =>
+        `"${tx.txDate}","${tx.counterpartyName}","${txTypeMap[tx.txType] || tx.txType}","${tx.amount}","${(tx.description || "").replace(/"/g, '""')}"`
+      ).join("\n");
+      const bom = "\uFEFF";
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", "attachment; filename=islemler.csv");
+      res.send(bom + header + rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/reports/monthly/:year/:month", async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ message: "Geçersiz tarih" });
+      }
+      const report = await storage.getMonthlyReport(year, month);
+      res.json(report);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

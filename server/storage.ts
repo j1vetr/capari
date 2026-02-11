@@ -11,7 +11,7 @@ export interface IStorage {
   getCounterparty(id: string): Promise<CounterpartyWithBalance | undefined>;
   createCounterparty(data: InsertCounterparty): Promise<CounterpartyWithBalance>;
 
-  getTransactionsByCounterparty(counterpartyId: string): Promise<Transaction[]>;
+  getTransactionsByCounterparty(counterpartyId: string, options?: { startDate?: string; endDate?: string; limit?: number; offset?: number }): Promise<{ transactions: Transaction[]; total: number }>;
   getTransactionsByDate(date: string): Promise<TransactionWithCounterparty[]>;
   createTransaction(data: InsertTransaction): Promise<Transaction>;
   getTransaction(id: string): Promise<Transaction | undefined>;
@@ -26,6 +26,17 @@ export interface IStorage {
     totalCollections: string;
     totalPurchases: string;
     totalPayments: string;
+    transactions: TransactionWithCounterparty[];
+  }>;
+
+  getRecentTransactions(limit: number): Promise<TransactionWithCounterparty[]>;
+  deleteCounterparty(id: string): Promise<void>;
+  getMonthlyReport(year: number, month: number): Promise<{
+    totalSales: string;
+    totalCollections: string;
+    totalPurchases: string;
+    totalPayments: string;
+    dailyBreakdown: { date: string; sales: string; collections: string; purchases: string; payments: string }[];
     transactions: TransactionWithCounterparty[];
   }>;
 }
@@ -70,10 +81,24 @@ export class DatabaseStorage implements IStorage {
     return { ...created, balance: "0" };
   }
 
-  async getTransactionsByCounterparty(counterpartyId: string): Promise<Transaction[]> {
-    return db.select().from(transactions)
-      .where(eq(transactions.counterpartyId, counterpartyId))
+  async getTransactionsByCounterparty(counterpartyId: string, options?: { startDate?: string; endDate?: string; limit?: number; offset?: number }): Promise<{ transactions: Transaction[]; total: number }> {
+    const conditions = [eq(transactions.counterpartyId, counterpartyId)];
+    if (options?.startDate) conditions.push(gte(transactions.txDate, options.startDate));
+    if (options?.endDate) conditions.push(lte(transactions.txDate, options.endDate));
+    const where = and(...conditions);
+
+    const countResult = await db.select({ count: sql<number>`count(*)` }).from(transactions).where(where!);
+    const total = Number(countResult[0].count);
+
+    let query = db.select().from(transactions)
+      .where(where!)
       .orderBy(desc(transactions.txDate), desc(transactions.createdAt));
+
+    if (options?.limit) query = query.limit(options.limit) as any;
+    if (options?.offset) query = query.offset(options.offset) as any;
+
+    const txList = await query;
+    return { transactions: txList, total };
   }
 
   async getTransactionsByDate(date: string): Promise<TransactionWithCounterparty[]> {
@@ -227,6 +252,98 @@ export class DatabaseStorage implements IStorage {
       todayPayments: String(row.today_payments),
       last7DaysSales: chartResult.rows.map((r: any) => ({ date: r.date, total: String(r.total) })),
     };
+  }
+
+  async getRecentTransactions(limit: number): Promise<TransactionWithCounterparty[]> {
+    const result = await db.execute(sql`
+      SELECT t.*, c.name as counterparty_name, c.type as counterparty_type
+      FROM transactions t
+      JOIN counterparties c ON c.id = t.counterparty_id
+      ORDER BY t.created_at DESC
+      LIMIT ${limit}
+    `);
+    return result.rows.map((r: any) => ({
+      ...r,
+      txType: r.tx_type,
+      counterpartyId: r.counterparty_id,
+      reversedOf: r.reversed_of,
+      txDate: r.tx_date,
+      createdAt: r.created_at,
+      counterpartyName: r.counterparty_name,
+      counterpartyType: r.counterparty_type,
+    })) as TransactionWithCounterparty[];
+  }
+
+  async getMonthlyReport(year: number, month: number) {
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endDate = month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+
+    const txResult = await db.execute(sql`
+      SELECT t.*, c.name as counterparty_name, c.type as counterparty_type
+      FROM transactions t
+      JOIN counterparties c ON c.id = t.counterparty_id
+      WHERE t.tx_date >= ${startDate} AND t.tx_date < ${endDate}
+      ORDER BY t.tx_date DESC, t.created_at DESC
+    `);
+
+    const txs: TransactionWithCounterparty[] = txResult.rows.map((r: any) => ({
+      ...r,
+      txType: r.tx_type,
+      counterpartyId: r.counterparty_id,
+      reversedOf: r.reversed_of,
+      txDate: r.tx_date,
+      createdAt: r.created_at,
+      counterpartyName: r.counterparty_name,
+      counterpartyType: r.counterparty_type,
+    }));
+
+    let totalSales = 0, totalCollections = 0, totalPurchases = 0, totalPayments = 0;
+    const dailyMap = new Map<string, { sales: number; collections: number; purchases: number; payments: number }>();
+
+    for (const tx of txs) {
+      const amt = parseFloat(tx.amount);
+      switch (tx.txType) {
+        case "sale": totalSales += amt; break;
+        case "collection": totalCollections += amt; break;
+        case "purchase": totalPurchases += amt; break;
+        case "payment": totalPayments += amt; break;
+      }
+      const dateStr = tx.txDate;
+      if (!dailyMap.has(dateStr)) dailyMap.set(dateStr, { sales: 0, collections: 0, purchases: 0, payments: 0 });
+      const day = dailyMap.get(dateStr)!;
+      switch (tx.txType) {
+        case "sale": day.sales += amt; break;
+        case "collection": day.collections += amt; break;
+        case "purchase": day.purchases += amt; break;
+        case "payment": day.payments += amt; break;
+      }
+    }
+
+    const dailyBreakdown = Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, d]) => ({
+        date,
+        sales: d.sales.toFixed(2),
+        collections: d.collections.toFixed(2),
+        purchases: d.purchases.toFixed(2),
+        payments: d.payments.toFixed(2),
+      }));
+
+    return {
+      totalSales: totalSales.toFixed(2),
+      totalCollections: totalCollections.toFixed(2),
+      totalPurchases: totalPurchases.toFixed(2),
+      totalPayments: totalPayments.toFixed(2),
+      dailyBreakdown,
+      transactions: txs,
+    };
+  }
+
+  async deleteCounterparty(id: string): Promise<void> {
+    await db.delete(transactions).where(eq(transactions.counterpartyId, id));
+    await db.delete(counterparties).where(eq(counterparties.id, id));
   }
 
   async getDailyReport(date: string) {

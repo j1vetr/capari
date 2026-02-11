@@ -1,0 +1,18 @@
+{
+  "name": "Çapari Balık Dağıtım",
+  "short_name": "Çapari",
+  "description": "Balık dağıtım cari takip sistemi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#0284c7",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

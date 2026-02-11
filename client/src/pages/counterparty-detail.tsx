@@ -16,9 +16,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Phone, MessageCircle, Plus, Store, Truck,
   RotateCcw, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Download, Check, AlertCircle, FileText, Clock, Pencil, Trash2
+  Download, Check, AlertCircle, FileText, Clock, Pencil, Trash2, CalendarDays
 } from "lucide-react";
-import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems } from "@/lib/formatters";
+import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems, todayISO } from "@/lib/formatters";
 import { ChevronDown, Fish } from "lucide-react";
 import type { CounterpartyWithBalance, Transaction } from "@shared/schema";
 
@@ -42,8 +42,14 @@ export default function CounterpartyDetail() {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: nextItemId++, product: "", quantity: "", unitPrice: "" },
   ]);
+  const [dialogTxDate, setDialogTxDate] = useState(todayISO());
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [txPage, setTxPage] = useState(0);
+  const TX_PAGE_SIZE = 20;
   const [confirmReverse, setConfirmReverse] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
   const [editingDueDay, setEditingDueDay] = useState(false);
   const [dueDayValue, setDueDayValue] = useState("");
@@ -55,9 +61,23 @@ export default function CounterpartyDetail() {
     queryKey: ["/api/counterparties", params.id],
   });
 
-  const { data: txList, isLoading: txLoading } = useQuery<Transaction[]>({
-    queryKey: ["/api/counterparties", params.id, "transactions"],
+  const txQueryParams = new URLSearchParams();
+  if (filterStartDate) txQueryParams.set("startDate", filterStartDate);
+  if (filterEndDate) txQueryParams.set("endDate", filterEndDate);
+  txQueryParams.set("limit", String(TX_PAGE_SIZE));
+  txQueryParams.set("offset", String(txPage * TX_PAGE_SIZE));
+  const txQueryString = txQueryParams.toString();
+
+  const { data: txData, isLoading: txLoading } = useQuery<{ transactions: Transaction[]; total: number }>({
+    queryKey: ["/api/counterparties", params.id, "transactions", { filterStartDate, filterEndDate, txPage }],
+    queryFn: async () => {
+      const res = await fetch(`/api/counterparties/${params.id}/transactions?${txQueryString}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load transactions");
+      return res.json();
+    },
   });
+  const txList = txData?.transactions;
+  const txTotal = txData?.total ?? 0;
 
   const createTxMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -74,6 +94,7 @@ export default function CounterpartyDetail() {
       setTxType("");
       setAmount("");
       setDescription("");
+      setDialogTxDate(todayISO());
       setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
     },
   });
@@ -120,6 +141,26 @@ export default function CounterpartyDetail() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", `/api/counterparties/${params.id}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      toast({ title: "Cari silindi" });
+      navigate("/counterparties");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Silinemedi", description: err.message, variant: "destructive" });
+    },
+  });
+
   const isSaleOrPurchaseTx = txType === "sale" || txType === "purchase";
 
   const lineItemTotal = (li: LineItem) => {
@@ -161,12 +202,16 @@ export default function CounterpartyDetail() {
       toast({ title: "Geçersiz tutar", variant: "destructive" });
       return;
     }
+    if (dialogTxDate > todayISO()) {
+      toast({ title: "Gelecek tarihli işlem eklenemez", variant: "destructive" });
+      return;
+    }
     createTxMutation.mutate({
       counterpartyId: params.id,
       txType,
       amount: dialogTotal.toFixed(2),
       description: dialogDescription || undefined,
-      txDate: new Date().toISOString().split("T")[0],
+      txDate: dialogTxDate,
     });
   };
 
@@ -412,7 +457,7 @@ export default function CounterpartyDetail() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={() => setShowAddTx(true)} data-testid="button-add-tx">
               <Plus className="w-4 h-4" />
               İşlem Ekle
@@ -425,24 +470,57 @@ export default function CounterpartyDetail() {
               <MessageCircle className="w-4 h-4" />
               {whatsappSending ? "Gönderiliyor..." : "WhatsApp"}
             </Button>
+            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1 text-red-500 dark:text-red-400" onClick={() => setConfirmDelete(true)} data-testid="button-delete-counterparty">
+              <Trash2 className="w-4 h-4" />
+              Sil
+            </Button>
           </div>
         </>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">İşlem Geçmişi</p>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-28 h-8 text-xs" data-testid="select-filter-type">
-            <SelectValue placeholder="Filtrele" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tümü</SelectItem>
-            <SelectItem value="sale">Satış</SelectItem>
-            <SelectItem value="collection">Tahsilat</SelectItem>
-            <SelectItem value="purchase">Alım</SelectItem>
-            <SelectItem value="payment">Ödeme</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">İşlem Geçmişi</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-28 h-8 text-xs" data-testid="select-filter-type">
+                <SelectValue placeholder="Filtrele" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tümü</SelectItem>
+                <SelectItem value="sale">Satış</SelectItem>
+                <SelectItem value="collection">Tahsilat</SelectItem>
+                <SelectItem value="purchase">Alım</SelectItem>
+                <SelectItem value="payment">Ödeme</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Input
+            type="date"
+            value={filterStartDate}
+            onChange={(e) => { setFilterStartDate(e.target.value); setTxPage(0); }}
+            className="h-8 text-xs w-[130px]"
+            placeholder="Başlangıç"
+            data-testid="input-filter-start-date"
+          />
+          <span className="text-xs text-gray-400">-</span>
+          <Input
+            type="date"
+            value={filterEndDate}
+            onChange={(e) => { setFilterEndDate(e.target.value); setTxPage(0); }}
+            className="h-8 text-xs w-[130px]"
+            placeholder="Bitiş"
+            data-testid="input-filter-end-date"
+          />
+          {(filterStartDate || filterEndDate) && (
+            <Button variant="ghost" size="sm" onClick={() => { setFilterStartDate(""); setFilterEndDate(""); setTxPage(0); }} data-testid="button-clear-date-filter">
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          <Badge variant="secondary" className="text-[10px] ml-auto">{txTotal} işlem</Badge>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -565,6 +643,32 @@ export default function CounterpartyDetail() {
             </Card>
           );
         })}
+
+        {txTotal > TX_PAGE_SIZE && (
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTxPage(p => Math.max(0, p - 1))}
+              disabled={txPage === 0}
+              data-testid="button-prev-page"
+            >
+              Önceki
+            </Button>
+            <span className="text-xs text-gray-500 dark:text-muted-foreground">
+              {txPage * TX_PAGE_SIZE + 1}-{Math.min((txPage + 1) * TX_PAGE_SIZE, txTotal)} / {txTotal}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTxPage(p => p + 1)}
+              disabled={(txPage + 1) * TX_PAGE_SIZE >= txTotal}
+              data-testid="button-next-page"
+            >
+              Sonraki
+            </Button>
+          </div>
+        )}
       </div>
 
       <Dialog open={showAddTx} onOpenChange={setShowAddTx}>
@@ -721,6 +825,22 @@ export default function CounterpartyDetail() {
                   />
                 </div>
               </>
+            )}
+
+            {txType && (
+              <div>
+                <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                  <CalendarDays className="w-3.5 h-3.5 inline mr-1" />
+                  İşlem Tarihi
+                </Label>
+                <Input
+                  type="date"
+                  value={dialogTxDate}
+                  max={todayISO()}
+                  onChange={(e) => setDialogTxDate(e.target.value)}
+                  data-testid="input-dialog-tx-date"
+                />
+              </div>
             )}
 
             {txType && dialogSubtotal > 0 && (
@@ -898,6 +1018,38 @@ export default function CounterpartyDetail() {
                 {updateDueDayMutation.isPending ? "Kaydediliyor..." : "Kaydet"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+              <Trash2 className="w-5 h-5" />
+              Cari Sil
+            </DialogTitle>
+            <DialogDescription>
+              {party?.name} ve tüm işlem geçmişi kalıcı olarak silinecek. Bu işlem geri alınamaz.
+              {party && parseFloat(party.balance) !== 0 && (
+                <span className="block mt-2 text-red-600 dark:text-red-400 font-semibold">
+                  Bakiyesi sıfır olmayan cari silinemez.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmDelete(false)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending || (party ? parseFloat(party.balance) !== 0 : true)}
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

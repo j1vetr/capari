@@ -14,9 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Search, Plus, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText
+  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText, CalendarDays
 } from "lucide-react";
-import { formatCurrency, txTypeLabel } from "@/lib/formatters";
+import { formatCurrency, txTypeLabel, todayISO } from "@/lib/formatters";
 import type { CounterpartyWithBalance } from "@shared/schema";
 
 type LineItem = {
@@ -81,6 +81,7 @@ export default function QuickTransaction() {
   ]);
   const [directAmount, setDirectAmount] = useState("");
   const [directDescription, setDirectDescription] = useState("");
+  const [txDate, setTxDate] = useState(todayISO());
 
   const { data: parties } = useQuery<CounterpartyWithBalance[]>({
     queryKey: ["/api/counterparties"],
@@ -108,24 +109,36 @@ export default function QuickTransaction() {
       setNewAddress("");
       toast({ title: "Yeni cari eklendi" });
     },
+    onError: () => {
+      toast({ title: "Cari eklenemedi", description: "Bir hata oluştu, lütfen tekrar deneyin", variant: "destructive" });
+    },
   });
 
   const createTxMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/transactions", data);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message);
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recent-transactions"] });
       toast({ title: `${txTypeLabel(txType)} kaydedildi`, description: `${selectedParty?.name} - ${formatCurrency(computedTotal)}` });
       setSelectedParty(null);
       setTxType("");
       setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
       setDirectAmount("");
       setDirectDescription("");
+      setTxDate(todayISO());
       setSearch("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "İşlem kaydedilemedi", description: err.message, variant: "destructive" });
     },
   });
 
@@ -168,12 +181,16 @@ export default function QuickTransaction() {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    if (txDate > todayISO()) {
+      toast({ title: "Gelecek tarihli işlem eklenemez", variant: "destructive" });
+      return;
+    }
     createTxMutation.mutate({
       counterpartyId: selectedParty!.id,
       txType,
       amount: computedTotal.toFixed(2),
       description: computedDescription || undefined,
-      txDate: new Date().toISOString().split("T")[0],
+      txDate,
     });
   };
 
@@ -491,6 +508,21 @@ export default function QuickTransaction() {
                   </div>
                 </div>
               )}
+
+              <div>
+                <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                  <CalendarDays className="w-3.5 h-3.5 inline mr-1" />
+                  İşlem Tarihi
+                </Label>
+                <Input
+                  type="date"
+                  value={txDate}
+                  max={todayISO()}
+                  onChange={(e) => setTxDate(e.target.value)}
+                  className="bg-white dark:bg-card"
+                  data-testid="input-tx-date"
+                />
+              </div>
 
               {computedTotal > 0 && (
                 <Card className="bg-gray-50 dark:bg-muted/30 border-gray-200 dark:border-muted">
