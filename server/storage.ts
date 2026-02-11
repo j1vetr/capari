@@ -1,10 +1,11 @@
 import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
 import { db } from "./db";
-import { counterparties, transactions, products, transactionItems } from "@shared/schema";
+import { counterparties, transactions, products, transactionItems, stockAdjustments } from "@shared/schema";
 import type {
   Counterparty, InsertCounterparty, CounterpartyWithBalance,
   Transaction, InsertTransaction, TransactionWithCounterparty, DashboardSummary, StatsData,
-  Product, InsertProduct, ProductWithStock, TransactionItem, TransactionItemWithProduct
+  Product, InsertProduct, ProductWithStock, TransactionItem, TransactionItemWithProduct,
+  InsertStockAdjustment, StockAdjustment
 } from "@shared/schema";
 
 export interface IStorage {
@@ -40,6 +41,7 @@ export interface IStorage {
   updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product>;
   createTransactionWithItems(data: InsertTransaction, items: { productId: string; quantity: string; unitPrice?: string }[]): Promise<Transaction>;
   getTransactionItems(transactionId: string): Promise<TransactionItemWithProduct[]>;
+  createStockAdjustment(data: InsertStockAdjustment): Promise<StockAdjustment>;
   resetAllData(): Promise<void>;
   getMonthlyReport(year: number, month: number): Promise<{
     totalSales: string;
@@ -397,16 +399,25 @@ export class DatabaseStorage implements IStorage {
   async getProductsWithStock(): Promise<ProductWithStock[]> {
     const result = await db.execute(sql`
       SELECT p.*,
-        COALESCE(
-          (SELECT SUM(CASE
-            WHEN t.tx_type IN ('purchase') THEN ti.quantity
-            WHEN t.tx_type IN ('sale') THEN -ti.quantity
-            ELSE 0
-          END)
-          FROM transaction_items ti
-          JOIN transactions t ON t.id = ti.transaction_id
-          WHERE ti.product_id = p.id
-          ), 0
+        (
+          COALESCE(
+            (SELECT SUM(CASE
+              WHEN t.tx_type IN ('purchase') THEN ti.quantity
+              WHEN t.tx_type IN ('sale') THEN -ti.quantity
+              ELSE 0
+            END)
+            FROM transaction_items ti
+            JOIN transactions t ON t.id = ti.transaction_id
+            WHERE ti.product_id = p.id
+            ), 0
+          )
+          +
+          COALESCE(
+            (SELECT SUM(sa.quantity)
+            FROM stock_adjustments sa
+            WHERE sa.product_id = p.id
+            ), 0
+          )
         ) as current_stock
       FROM products p
       WHERE p.is_active = true
@@ -491,8 +502,13 @@ export class DatabaseStorage implements IStorage {
       transactions: txs,
     };
   }
+  async createStockAdjustment(data: InsertStockAdjustment): Promise<StockAdjustment> {
+    const [created] = await db.insert(stockAdjustments).values(data).returning();
+    return created;
+  }
+
   async resetAllData(): Promise<void> {
-    await db.execute(sql`TRUNCATE TABLE transaction_items, transactions, counterparties, products CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE stock_adjustments, transaction_items, transactions, counterparties, products CASCADE`);
   }
 }
 

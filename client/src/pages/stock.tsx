@@ -12,10 +12,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
-  Package, Plus, Search, AlertTriangle, X
+  Package, Plus, Search, AlertTriangle, X, PlusCircle
 } from "lucide-react";
 import type { ProductWithStock } from "@shared/schema";
 
@@ -25,6 +31,10 @@ export default function Stock() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState<"kg" | "kasa" | "adet">("kg");
+
+  const [adjustProduct, setAdjustProduct] = useState<ProductWithStock | null>(null);
+  const [adjustQty, setAdjustQty] = useState("");
+  const [adjustNotes, setAdjustNotes] = useState("");
 
   const { data: stockData, isLoading } = useQuery<ProductWithStock[]>({
     queryKey: ["/api/stock"],
@@ -48,12 +58,43 @@ export default function Stock() {
     },
   });
 
+  const adjustMutation = useMutation({
+    mutationFn: async (data: { productId: string; quantity: string; notes?: string }) => {
+      const res = await apiRequest("POST", "/api/stock/adjust", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
+      setAdjustProduct(null);
+      setAdjustQty("");
+      setAdjustNotes("");
+      toast({ title: "Stok güncellendi" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     if (!newName.trim()) {
       toast({ title: "Ürün adı gerekli", variant: "destructive" });
       return;
     }
     addMutation.mutate({ name: newName.trim(), unit: newUnit });
+  };
+
+  const handleAdjust = () => {
+    if (!adjustProduct) return;
+    const qty = parseFloat(adjustQty);
+    if (isNaN(qty) || qty === 0) {
+      toast({ title: "Geçerli bir miktar girin", variant: "destructive" });
+      return;
+    }
+    adjustMutation.mutate({
+      productId: adjustProduct.id,
+      quantity: adjustQty,
+      notes: adjustNotes.trim() || undefined,
+    });
   };
 
   const filtered = stockData?.filter(p =>
@@ -166,15 +207,29 @@ export default function Stock() {
                       Birim: {unitLabel(product.unit)}
                     </p>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`text-base font-bold tabular-nums ${
-                      isLow ? "text-red-600 dark:text-red-400" : "text-gray-800 dark:text-foreground"
-                    }`}>
-                      {parseFloat(product.currentStock).toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                    </p>
-                    <Badge variant={isLow ? "destructive" : "secondary"} className="text-[9px]">
-                      {unitLabel(product.unit)}
-                    </Badge>
+                  <div className="text-right flex-shrink-0 flex items-center gap-2">
+                    <div>
+                      <p className={`text-base font-bold tabular-nums ${
+                        isLow ? "text-red-600 dark:text-red-400" : "text-gray-800 dark:text-foreground"
+                      }`}>
+                        {parseFloat(product.currentStock).toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                      </p>
+                      <Badge variant={isLow ? "destructive" : "secondary"} className="text-[9px]">
+                        {unitLabel(product.unit)}
+                      </Badge>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        setAdjustProduct(product);
+                        setAdjustQty("");
+                        setAdjustNotes("");
+                      }}
+                      data-testid={`button-adjust-stock-${product.id}`}
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -182,6 +237,63 @@ export default function Stock() {
           );
         })}
       </div>
+
+      <Dialog open={!!adjustProduct} onOpenChange={(open) => { if (!open) setAdjustProduct(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manuel Stok Düzenleme</DialogTitle>
+          </DialogHeader>
+          {adjustProduct && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50">
+                <Package className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">{adjustProduct.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Mevcut stok: {parseFloat(adjustProduct.currentStock).toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {unitLabel(adjustProduct.unit)}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Miktar ({unitLabel(adjustProduct.unit)})
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder={`Ör: 50 (eklemek için) veya -10 (çıkarmak için)`}
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(e.target.value)}
+                  data-testid="input-adjust-quantity"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pozitif = stok ekleme, negatif = stok çıkarma
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Not (isteğe bağlı)
+                </label>
+                <Input
+                  placeholder="Ör: Depodan sayım düzeltmesi"
+                  value={adjustNotes}
+                  onChange={(e) => setAdjustNotes(e.target.value)}
+                  data-testid="input-adjust-notes"
+                />
+              </div>
+              <Button
+                className="gap-1.5"
+                onClick={handleAdjust}
+                disabled={adjustMutation.isPending || !adjustQty}
+                data-testid="button-save-adjustment"
+              >
+                <PlusCircle className="w-4 h-4" />
+                {adjustMutation.isPending ? "Kaydediliyor..." : "Stoku Güncelle"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

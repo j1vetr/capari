@@ -358,6 +358,32 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/stock/adjust", async (req, res) => {
+    try {
+      const schema = z.object({
+        productId: z.string().uuid(),
+        quantity: z.string(),
+        notes: z.string().optional(),
+      });
+      const parsed = schema.parse(req.body);
+      const qty = parseFloat(parsed.quantity);
+      if (isNaN(qty) || qty === 0) {
+        return res.status(400).json({ message: "Miktar sıfırdan farklı olmalı" });
+      }
+      const adjustment = await storage.createStockAdjustment({
+        productId: parsed.productId,
+        quantity: parsed.quantity,
+        notes: parsed.notes || null,
+      });
+      res.status(201).json(adjustment);
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.patch("/api/products/:id", async (req, res) => {
     try {
       const updateSchema = z.object({

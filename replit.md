@@ -40,11 +40,12 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - **transactions**: id (uuid), counterparty_id (fk), tx_type (sale|collection|purchase|payment), amount (numeric 12,2), description, tx_date, reversed_of (uuid nullable)
 - **products**: id (uuid), name, unit (kg|kasa|adet), is_active (boolean)
 - **transaction_items**: id (uuid), transaction_id (fk), product_id (fk), quantity (numeric 10,2), unit_price (numeric 10,2 nullable)
+- **stock_adjustments**: id (uuid), product_id (fk), quantity (numeric 10,2), notes (text nullable)
 
 ## Business Rules
 - Customer balance = sum(sale) - sum(collection) → positive = customer owes us
 - Supplier balance = sum(purchase) - sum(payment) → positive = we owe supplier
-- Stock = sum(purchase quantities) - sum(sale quantities) per product
+- Stock = sum(purchase quantities) - sum(sale quantities) + sum(manual adjustments) per product
 - No deletion: "Düzelt" creates compensating reverse transaction (including stock reversal)
 - Counterparty deletion allowed regardless of balance (deletes all related transactions)
 - Invoiced firms (faturalı): 1% KDV added separately on sale/purchase transactions

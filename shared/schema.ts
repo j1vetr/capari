@@ -59,6 +59,16 @@ export const transactionItems = pgTable("transaction_items", {
   index("idx_transaction_items_product").on(table.productId),
 ]);
 
+export const stockAdjustments = pgTable("stock_adjustments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: uuid("product_id").notNull().references(() => products.id),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_stock_adjustments_product").on(table.productId),
+]);
+
 export const insertCounterpartySchema = createInsertSchema(counterparties).omit({
   id: true,
   createdAt: true,
@@ -83,6 +93,11 @@ export const insertTransactionItemSchema = createInsertSchema(transactionItems).
   createdAt: true,
 });
 
+export const insertStockAdjustmentSchema = createInsertSchema(stockAdjustments).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 
@@ -94,6 +109,9 @@ export type TransactionItem = typeof transactionItems.$inferSelect;
 
 export type CounterpartyWithBalance = Counterparty & { balance: string };
 export type TransactionWithCounterparty = Transaction & { counterpartyName: string; counterpartyType: string };
+
+export type InsertStockAdjustment = z.infer<typeof insertStockAdjustmentSchema>;
+export type StockAdjustment = typeof stockAdjustments.$inferSelect;
 
 export type ProductWithStock = Product & { currentStock: string };
 
