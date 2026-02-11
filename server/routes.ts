@@ -40,7 +40,7 @@ export async function registerRoutes(
   });
 
   const { randomBytes } = await import("crypto");
-  const tempPdfStore = new Map<string, { buffer: Buffer; expires: number }>();
+  const tempPdfStore = new Map<string, { buffer: Buffer; expires: number; filename?: string }>();
 
   setInterval(() => {
     const now = Date.now();
@@ -55,8 +55,9 @@ export async function registerRoutes(
       tempPdfStore.delete(req.params.token);
       return res.status(404).json({ message: "PDF bulunamadi veya suresi dolmus" });
     }
+    const fname = entry.filename || "capari-ekstre.pdf";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="capari-ekstre.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
     res.send(entry.buffer);
     tempPdfStore.delete(req.params.token);
   });
@@ -487,7 +488,8 @@ export async function registerRoutes(
       const pdfBuffer = Buffer.concat(chunks);
 
       const token = randomBytes(32).toString("hex");
-      tempPdfStore.set(token, { buffer: pdfBuffer, expires: Date.now() + 3 * 60 * 1000 });
+      const safeName = party.name.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+      tempPdfStore.set(token, { buffer: pdfBuffer, expires: Date.now() + 3 * 60 * 1000, filename: `${safeName}-Ekstre.pdf` });
 
       const host = req.headers.host || "localhost:5000";
       const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";

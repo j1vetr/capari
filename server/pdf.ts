@@ -1,5 +1,7 @@
 import PDFDocument from "pdfkit";
 import type { CounterpartyWithBalance, Transaction, TransactionWithCounterparty } from "@shared/schema";
+const FONT_REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+const FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
 
 const TX_TYPE_LABELS: Record<string, string> = {
   sale: "Satış",
@@ -8,9 +10,25 @@ const TX_TYPE_LABELS: Record<string, string> = {
   payment: "Ödeme",
 };
 
+const COLORS = {
+  primary: "#1a365d",
+  secondary: "#2b6cb0",
+  accent: "#3182ce",
+  text: "#1a202c",
+  textLight: "#4a5568",
+  textMuted: "#718096",
+  border: "#cbd5e0",
+  borderLight: "#e2e8f0",
+  bgLight: "#f7fafc",
+  bgHeader: "#ebf4ff",
+  success: "#276749",
+  danger: "#c53030",
+  white: "#ffffff",
+};
+
 function formatCurrency(amount: string | number): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
-  return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " TL";
+  return num.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " \u20BA";
 }
 
 function formatDate(dateStr: string): string {
@@ -18,59 +36,163 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString("tr-TR");
 }
 
+function drawHeader(doc: PDFKit.PDFDocument, leftMargin: number, rightEdge: number) {
+  const headerY = doc.y;
+  doc.rect(leftMargin, headerY, rightEdge - leftMargin, 50).fill(COLORS.primary);
+  doc.font(FONT_BOLD).fontSize(16).fillColor(COLORS.white);
+  doc.text("Çapari Balık Dağıtım", leftMargin, headerY + 10, {
+    align: "center",
+    width: rightEdge - leftMargin,
+  });
+  doc.fontSize(9).fillColor("#a0c4ff");
+  doc.text("Cari Hesap Yönetim Sistemi", leftMargin, headerY + 30, {
+    align: "center",
+    width: rightEdge - leftMargin,
+  });
+  doc.y = headerY + 58;
+  doc.fillColor(COLORS.text);
+}
+
+function drawInfoBox(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  label: string,
+  value: string,
+  valueColor?: string
+) {
+  doc.rect(x, y, w, h).lineWidth(0.5).strokeColor(COLORS.border).fillAndStroke(COLORS.bgLight, COLORS.border);
+  doc.font(FONT_REGULAR).fontSize(7).fillColor(COLORS.textMuted);
+  doc.text(label, x + 8, y + 6, { width: w - 16 });
+  doc.font(FONT_BOLD).fontSize(10).fillColor(valueColor || COLORS.text);
+  doc.text(value, x + 8, y + 18, { width: w - 16 });
+  doc.fillColor(COLORS.text);
+}
+
+function drawTableHeader(doc: PDFKit.PDFDocument, columns: { x: number; w: number; label: string }[], y: number) {
+  const fullWidth = columns[columns.length - 1].x + columns[columns.length - 1].w - columns[0].x;
+  doc.rect(columns[0].x, y, fullWidth, 18).fill(COLORS.primary);
+  doc.font(FONT_BOLD).fontSize(8).fillColor(COLORS.white);
+  for (const col of columns) {
+    doc.text(col.label, col.x + 4, y + 5, { width: col.w - 8 });
+  }
+  doc.fillColor(COLORS.text).font(FONT_REGULAR);
+  return y + 18;
+}
+
+function drawFooter(doc: PDFKit.PDFDocument, leftMargin: number, pageWidth: number, pageIndex: number, totalPages: number) {
+  const footerY = doc.page.height - 35;
+  doc.moveTo(leftMargin, footerY).lineTo(leftMargin + pageWidth, footerY).lineWidth(0.5).strokeColor(COLORS.borderLight).stroke();
+  doc.font(FONT_REGULAR).fontSize(7).fillColor(COLORS.textMuted);
+  doc.text(
+    `Çapari Balık Dağıtım  |  Sayfa ${pageIndex + 1} / ${totalPages}  |  ${new Date().toLocaleDateString("tr-TR")}`,
+    leftMargin,
+    footerY + 5,
+    { align: "center", width: pageWidth }
+  );
+  doc.fillColor(COLORS.text);
+}
+
 export function generateCounterpartyPDF(
   party: CounterpartyWithBalance,
   transactions: Transaction[]
 ): PDFKit.PDFDocument {
-  const doc = new PDFDocument({ size: "A4", margin: 40 });
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
+  const leftMargin = 40;
+  const rightEdge = 555;
+  const pageWidth = rightEdge - leftMargin;
 
-  doc.fontSize(18).text("Çapari Balık Dağıtım", { align: "center" });
-  doc.fontSize(10).text("Cari Ekstre", { align: "center" });
-  doc.moveDown(0.5);
-  doc.fontSize(9).text(`Tarih: ${new Date().toLocaleDateString("tr-TR")}`, { align: "right" });
-  doc.moveDown();
+  doc.font(FONT_REGULAR);
 
-  doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-  doc.moveDown(0.5);
+  drawHeader(doc, leftMargin, rightEdge);
 
-  doc.fontSize(12).text(`Firma: ${party.name}`);
-  doc.fontSize(10).text(`Tür: ${party.type === "customer" ? "Müşteri" : "Tedarikçi"}`);
-  if (party.phone) doc.text(`Telefon: ${party.phone}`);
-  doc.moveDown(0.5);
-  doc.fontSize(14).text(`Bakiye: ${formatCurrency(party.balance)}`, { underline: true });
-  doc.moveDown();
-
-  doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+  doc.font(FONT_BOLD).fontSize(12).fillColor(COLORS.primary);
+  doc.text("CARİ HESAP EKSTRESİ", leftMargin, doc.y, { align: "center", width: pageWidth });
   doc.moveDown(0.5);
 
-  doc.fontSize(10);
-  const tableTop = doc.y;
-  const col1 = 40, col2 = 120, col3 = 220, col4 = 370, col5 = 470;
+  doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.textMuted);
+  doc.text(`Oluşturma Tarihi: ${new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`, leftMargin, doc.y, { align: "right", width: pageWidth });
+  doc.moveDown(0.8);
 
-  doc.font("Helvetica-Bold");
-  doc.text("Tarih", col1, tableTop);
-  doc.text("Tür", col2, tableTop);
-  doc.text("Açıklama", col3, tableTop);
-  doc.text("Tutar", col4, tableTop);
-  doc.font("Helvetica");
+  const infoY = doc.y;
+  const boxW = (pageWidth - 10) / 2;
+  const boxH = 50;
 
-  doc.moveDown();
-  doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-  doc.moveDown(0.3);
+  doc.rect(leftMargin, infoY, boxW, boxH).lineWidth(0.5).strokeColor(COLORS.border).fillAndStroke(COLORS.bgLight, COLORS.border);
+  doc.font(FONT_BOLD).fontSize(11).fillColor(COLORS.primary);
+  doc.text(party.name, leftMargin + 10, infoY + 8, { width: boxW - 20 });
+  doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.textLight);
+  doc.text(`${party.type === "customer" ? "Müşteri" : "Tedarikçi"}${party.phone ? "  |  " + party.phone : ""}`, leftMargin + 10, infoY + 26, { width: boxW - 20 });
+  if (party.notes) {
+    doc.text(party.notes, leftMargin + 10, infoY + 38, { width: boxW - 20 });
+  }
+
+  const bal = parseFloat(party.balance);
+  const balColor = bal > 0 ? COLORS.danger : bal < 0 ? COLORS.success : COLORS.text;
+  const balLabel = party.type === "customer"
+    ? (bal > 0 ? "Müşteri Borcu" : bal < 0 ? "Fazla Ödeme" : "Bakiye")
+    : (bal > 0 ? "Borcumuz" : bal < 0 ? "Fazla Ödeme" : "Bakiye");
+
+  drawInfoBox(doc, leftMargin + boxW + 10, infoY, boxW, boxH, balLabel, formatCurrency(Math.abs(bal)), balColor);
+
+  doc.y = infoY + boxH + 15;
+
+  doc.font(FONT_BOLD).fontSize(10).fillColor(COLORS.primary);
+  doc.text(`İşlem Geçmişi (${transactions.length} kayıt)`, leftMargin);
+  doc.moveDown(0.4);
+
+  const cols = [
+    { x: leftMargin, w: 70, label: "Tarih" },
+    { x: leftMargin + 70, w: 70, label: "Tür" },
+    { x: leftMargin + 140, w: 220, label: "Açıklama" },
+    { x: leftMargin + 360, w: 90, label: "Tutar" },
+    { x: leftMargin + 450, w: 65, label: "Durum" },
+  ];
+
+  let tableY = drawTableHeader(doc, cols, doc.y);
+  let rowIndex = 0;
+  let runningBalance = 0;
 
   for (const tx of transactions) {
-    if (doc.y > 750) {
+    if (tableY > 720) {
       doc.addPage();
+      doc.font(FONT_REGULAR);
+      tableY = drawTableHeader(doc, cols, 40);
     }
-    const y = doc.y;
-    doc.text(formatDate(tx.txDate), col1, y);
-    doc.text(TX_TYPE_LABELS[tx.txType] || tx.txType, col2, y);
-    doc.text(tx.description || "-", col3, y, { width: 140 });
-    doc.text(formatCurrency(tx.amount), col4, y);
-    if (tx.reversedOf) {
-      doc.text("(Düzeltme)", col5, y);
+
+    const rowH = 20;
+    if (rowIndex % 2 === 1) {
+      doc.rect(leftMargin, tableY, pageWidth, rowH).fill(COLORS.bgLight);
     }
-    doc.moveDown(0.5);
+
+    doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.text);
+    doc.text(formatDate(tx.txDate), cols[0].x + 4, tableY + 6, { width: cols[0].w - 8 });
+    doc.text(TX_TYPE_LABELS[tx.txType] || tx.txType, cols[1].x + 4, tableY + 6, { width: cols[1].w - 8 });
+
+    const desc = tx.description || "-";
+    doc.fontSize(7).fillColor(COLORS.textLight);
+    doc.text(desc, cols[2].x + 4, tableY + 6, { width: cols[2].w - 8, lineBreak: false });
+
+    const isDebit = tx.txType === "sale" || tx.txType === "purchase";
+    doc.font(FONT_BOLD).fontSize(8).fillColor(isDebit ? COLORS.danger : COLORS.success);
+    doc.text((isDebit ? "+" : "-") + formatCurrency(tx.amount), cols[3].x + 4, tableY + 6, { width: cols[3].w - 8 });
+
+    doc.font(FONT_REGULAR).fontSize(7).fillColor(COLORS.textMuted);
+    doc.text(tx.reversedOf ? "Düzeltme" : "", cols[4].x + 4, tableY + 6, { width: cols[4].w - 8 });
+
+    tableY += rowH;
+    rowIndex++;
+  }
+
+  doc.moveTo(leftMargin, tableY).lineTo(rightEdge, tableY).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+  doc.fillColor(COLORS.text);
+
+  const pageCount = doc.bufferedPageRange().count;
+  for (let i = 0; i < pageCount; i++) {
+    doc.switchToPage(i);
+    drawFooter(doc, leftMargin, pageWidth, i, pageCount);
   }
 
   return doc;
@@ -80,122 +202,117 @@ export function generateAllCounterpartiesPDF(
   counterparties: CounterpartyWithBalance[],
   transactionsByCounterparty: Map<string, Transaction[]>
 ): PDFKit.PDFDocument {
-  const doc = new PDFDocument({ size: "A4", margin: 40 });
-  const pageWidth = 515;
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const leftMargin = 40;
-  const rightEdge = leftMargin + pageWidth;
-  const today = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  const rightEdge = 555;
+  const pageWidth = rightEdge - leftMargin;
 
-  doc.fontSize(20).font("Helvetica-Bold").text("Capari Balik Dagitim", { align: "center" });
-  doc.fontSize(11).font("Helvetica").text("Cari Hesap Raporu", { align: "center" });
+  doc.font(FONT_REGULAR);
+
+  drawHeader(doc, leftMargin, rightEdge);
+
+  doc.font(FONT_BOLD).fontSize(12).fillColor(COLORS.primary);
+  doc.text("TÜM CARİ HESAPLAR RAPORU", leftMargin, doc.y, { align: "center", width: pageWidth });
   doc.moveDown(0.3);
-  doc.fontSize(9).text(`Rapor Tarihi: ${today}`, { align: "center" });
-  doc.moveDown(0.5);
-
-  doc.moveTo(leftMargin, doc.y).lineTo(rightEdge, doc.y).lineWidth(1.5).stroke();
+  doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.textMuted);
+  doc.text(`Rapor Tarihi: ${new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}`, leftMargin, doc.y, { align: "center", width: pageWidth });
   doc.moveDown(0.8);
 
   const customers = counterparties.filter(c => c.type === "customer");
   const suppliers = counterparties.filter(c => c.type === "supplier");
-
   const totalReceivable = customers.reduce((s, c) => s + Math.max(0, parseFloat(c.balance)), 0);
   const totalPayable = suppliers.reduce((s, c) => s + Math.max(0, parseFloat(c.balance)), 0);
 
-  doc.fontSize(11).font("Helvetica-Bold").text("Genel Ozet", leftMargin);
-  doc.moveDown(0.3);
-  doc.fontSize(10).font("Helvetica");
-  doc.text(`Toplam Musteri: ${customers.length}`, leftMargin);
-  doc.text(`Toplam Tedarikci: ${suppliers.length}`, leftMargin);
-  doc.text(`Toplam Alacak: ${formatCurrency(totalReceivable)}`, leftMargin);
-  doc.text(`Toplam Borc: ${formatCurrency(totalPayable)}`, leftMargin);
-  doc.moveDown(0.8);
+  const summaryY = doc.y;
+  const bw = (pageWidth - 30) / 4;
+  drawInfoBox(doc, leftMargin, summaryY, bw, 35, "Müşteri Sayısı", `${customers.length}`);
+  drawInfoBox(doc, leftMargin + bw + 10, summaryY, bw, 35, "Tedarikçi Sayısı", `${suppliers.length}`);
+  drawInfoBox(doc, leftMargin + (bw + 10) * 2, summaryY, bw, 35, "Toplam Alacak", formatCurrency(totalReceivable), COLORS.danger);
+  drawInfoBox(doc, leftMargin + (bw + 10) * 3, summaryY, bw, 35, "Toplam Borç", formatCurrency(totalPayable), COLORS.success);
 
-  doc.moveTo(leftMargin, doc.y).lineTo(rightEdge, doc.y).lineWidth(0.5).stroke();
-  doc.moveDown(0.8);
+  doc.y = summaryY + 50;
 
   const renderSection = (title: string, parties: CounterpartyWithBalance[]) => {
     if (parties.length === 0) return;
 
-    doc.fontSize(14).font("Helvetica-Bold").text(title, leftMargin);
-    doc.moveDown(0.5);
+    if (doc.y > 680) doc.addPage();
 
-    const col1 = leftMargin;
-    const col2 = leftMargin + 200;
-    const col3 = leftMargin + 310;
-    const col4 = leftMargin + 420;
+    doc.font(FONT_BOLD).fontSize(11).fillColor(COLORS.primary);
+    doc.text(title, leftMargin, doc.y);
+    doc.moveDown(0.4);
 
-    doc.fontSize(9).font("Helvetica-Bold");
-    doc.text("Firma Adi", col1, doc.y, { continued: false });
-    const headerY = doc.y - doc.currentLineHeight();
-    doc.text("Telefon", col2, headerY);
-    doc.text("Tur", col3, headerY);
-    doc.text("Bakiye", col4, headerY);
+    const cols = [
+      { x: leftMargin, w: 180, label: "Firma Adı" },
+      { x: leftMargin + 180, w: 100, label: "Telefon" },
+      { x: leftMargin + 280, w: 80, label: "Tür" },
+      { x: leftMargin + 360, w: pageWidth - 360, label: "Bakiye" },
+    ];
 
-    doc.moveDown(0.2);
-    doc.moveTo(leftMargin, doc.y).lineTo(rightEdge, doc.y).lineWidth(0.5).stroke();
-    doc.moveDown(0.3);
-
-    doc.font("Helvetica").fontSize(9);
+    let tableY = drawTableHeader(doc, cols, doc.y);
+    let rowIndex = 0;
 
     for (const party of parties) {
-      if (doc.y > 720) {
+      if (tableY > 720) {
         doc.addPage();
+        doc.font(FONT_REGULAR);
+        tableY = drawTableHeader(doc, cols, 40);
+        rowIndex = 0;
       }
 
-      const y = doc.y;
+      const rowH = 18;
+      if (rowIndex % 2 === 1) {
+        doc.rect(leftMargin, tableY, pageWidth, rowH).fill(COLORS.bgLight);
+      }
+
       const bal = parseFloat(party.balance);
-      doc.text(party.name, col1, y, { width: 155 });
-      doc.text(party.phone || "-", col2, y, { width: 105 });
-      doc.text(party.type === "customer" ? "Musteri" : "Tedarikci", col3, y, { width: 105 });
-      doc.text(formatCurrency(bal), col4, y, { width: 95 });
-      doc.moveDown(0.2);
+      doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.text);
+      doc.text(party.name, cols[0].x + 4, tableY + 5, { width: cols[0].w - 8, lineBreak: false });
+      doc.text(party.phone || "-", cols[1].x + 4, tableY + 5, { width: cols[1].w - 8 });
+      doc.text(party.type === "customer" ? "Müşteri" : "Tedarikçi", cols[2].x + 4, tableY + 5, { width: cols[2].w - 8 });
+      doc.font(FONT_BOLD).fontSize(8).fillColor(bal > 0 ? COLORS.danger : bal < 0 ? COLORS.success : COLORS.text);
+      doc.text(formatCurrency(bal), cols[3].x + 4, tableY + 5, { width: cols[3].w - 8 });
+
+      tableY += rowH;
+      rowIndex++;
 
       const txs = transactionsByCounterparty.get(party.id) || [];
       if (txs.length > 0) {
-        doc.fontSize(8).fillColor("#666666");
-        const recentTxs = txs.slice(0, 10);
+        doc.font(FONT_REGULAR).fontSize(7).fillColor(COLORS.textMuted);
+        const recentTxs = txs.slice(0, 5);
         for (const tx of recentTxs) {
-          if (doc.y > 740) {
+          if (tableY > 740) {
             doc.addPage();
+            doc.font(FONT_REGULAR);
+            tableY = 40;
           }
-          const txY = doc.y;
-          doc.text(`  ${formatDate(tx.txDate)}`, col1 + 10, txY);
-          doc.text(TX_TYPE_LABELS[tx.txType] || tx.txType, col2, txY);
-          doc.text(tx.description || "-", col3 - 30, txY, { width: 140 });
-          doc.text(formatCurrency(tx.amount), col4, txY);
-          doc.moveDown(0.15);
+          doc.text(
+            `   ${formatDate(tx.txDate)}  -  ${TX_TYPE_LABELS[tx.txType] || tx.txType}  -  ${formatCurrency(tx.amount)}${tx.description ? "  -  " + tx.description.substring(0, 60) : ""}`,
+            leftMargin + 10, tableY, { width: pageWidth - 20, lineBreak: false }
+          );
+          tableY += 12;
         }
-        if (txs.length > 10) {
-          doc.text(`  ... ve ${txs.length - 10} islem daha`, col1 + 10);
-          doc.moveDown(0.15);
+        if (txs.length > 5) {
+          doc.text(`   ... ve ${txs.length - 5} işlem daha`, leftMargin + 10, tableY);
+          tableY += 12;
         }
-        doc.fillColor("#000000").fontSize(9);
+        doc.fillColor(COLORS.text);
       }
 
-      doc.moveDown(0.3);
-      doc.moveTo(leftMargin, doc.y).lineTo(rightEdge, doc.y).lineWidth(0.2).dash(2, { space: 2 }).stroke();
-      doc.undash();
-      doc.moveDown(0.3);
+      doc.moveTo(leftMargin, tableY + 2).lineTo(rightEdge, tableY + 2).lineWidth(0.2).strokeColor(COLORS.borderLight).stroke();
+      tableY += 6;
     }
 
-    doc.moveDown(0.5);
+    doc.y = tableY + 10;
   };
 
-  renderSection("Musteriler", customers);
-  renderSection("Tedarikciler", suppliers);
+  renderSection("Müşteriler", customers);
+  renderSection("Tedarikçiler", suppliers);
 
   const pageCount = doc.bufferedPageRange().count;
   for (let i = 0; i < pageCount; i++) {
     doc.switchToPage(i);
-    doc.fontSize(7).fillColor("#999999").text(
-      `Sayfa ${i + 1} / ${pageCount} - Capari Balik Dagitim`,
-      leftMargin,
-      doc.page.height - 30,
-      { align: "center", width: pageWidth }
-    );
+    drawFooter(doc, leftMargin, pageWidth, i, pageCount);
   }
-
-  doc.fillColor("#000000");
 
   return doc;
 }
@@ -210,52 +327,79 @@ export function generateDailyReportPDF(
     transactions: TransactionWithCounterparty[];
   }
 ): PDFKit.PDFDocument {
-  const doc = new PDFDocument({ size: "A4", margin: 40 });
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
+  const leftMargin = 40;
+  const rightEdge = 555;
+  const pageWidth = rightEdge - leftMargin;
 
-  doc.fontSize(18).text("Çapari Balık Dağıtım", { align: "center" });
-  doc.fontSize(10).text("Günlük Rapor", { align: "center" });
-  doc.moveDown(0.5);
-  doc.fontSize(12).text(`Tarih: ${formatDate(date)}`, { align: "center" });
-  doc.moveDown();
+  doc.font(FONT_REGULAR);
 
-  doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-  doc.moveDown(0.5);
+  drawHeader(doc, leftMargin, rightEdge);
 
-  doc.fontSize(11);
-  doc.text(`Toplam Satış: ${formatCurrency(report.totalSales)}`);
-  doc.text(`Toplam Tahsilat: ${formatCurrency(report.totalCollections)}`);
-  doc.text(`Toplam Alım: ${formatCurrency(report.totalPurchases)}`);
-  doc.text(`Toplam Ödeme: ${formatCurrency(report.totalPayments)}`);
-  doc.moveDown();
-
-  doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-  doc.moveDown(0.5);
-
-  doc.fontSize(10);
-  const tableTop = doc.y;
-  const col1 = 40, col2 = 180, col3 = 280, col4 = 380, col5 = 470;
-
-  doc.font("Helvetica-Bold");
-  doc.text("Firma", col1, tableTop);
-  doc.text("Tür", col2, tableTop);
-  doc.text("Açıklama", col3, tableTop);
-  doc.text("Tutar", col4, tableTop);
-  doc.font("Helvetica");
-
-  doc.moveDown();
-  doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+  doc.font(FONT_BOLD).fontSize(12).fillColor(COLORS.primary);
+  doc.text("GÜNLÜK RAPOR", leftMargin, doc.y, { align: "center", width: pageWidth });
   doc.moveDown(0.3);
+  doc.font(FONT_REGULAR).fontSize(10).fillColor(COLORS.textLight);
+  doc.text(formatDate(date), leftMargin, doc.y, { align: "center", width: pageWidth });
+  doc.moveDown(0.8);
+
+  const summaryY = doc.y;
+  const bw = (pageWidth - 30) / 4;
+  drawInfoBox(doc, leftMargin, summaryY, bw, 35, "Toplam Satış", formatCurrency(report.totalSales), COLORS.danger);
+  drawInfoBox(doc, leftMargin + bw + 10, summaryY, bw, 35, "Toplam Tahsilat", formatCurrency(report.totalCollections), COLORS.success);
+  drawInfoBox(doc, leftMargin + (bw + 10) * 2, summaryY, bw, 35, "Toplam Alım", formatCurrency(report.totalPurchases));
+  drawInfoBox(doc, leftMargin + (bw + 10) * 3, summaryY, bw, 35, "Toplam Ödeme", formatCurrency(report.totalPayments));
+
+  doc.y = summaryY + 50;
+
+  doc.font(FONT_BOLD).fontSize(10).fillColor(COLORS.primary);
+  doc.text(`İşlemler (${report.transactions.length} kayıt)`, leftMargin);
+  doc.moveDown(0.4);
+
+  const cols = [
+    { x: leftMargin, w: 140, label: "Firma" },
+    { x: leftMargin + 140, w: 70, label: "Tür" },
+    { x: leftMargin + 210, w: 200, label: "Açıklama" },
+    { x: leftMargin + 410, w: 105, label: "Tutar" },
+  ];
+
+  let tableY = drawTableHeader(doc, cols, doc.y);
+  let rowIndex = 0;
 
   for (const tx of report.transactions) {
-    if (doc.y > 750) {
+    if (tableY > 720) {
       doc.addPage();
+      doc.font(FONT_REGULAR);
+      tableY = drawTableHeader(doc, cols, 40);
+      rowIndex = 0;
     }
-    const y = doc.y;
-    doc.text(tx.counterpartyName || "", col1, y, { width: 130 });
-    doc.text(TX_TYPE_LABELS[tx.txType] || tx.txType, col2, y);
-    doc.text(tx.description || "-", col3, y, { width: 90 });
-    doc.text(formatCurrency(tx.amount), col4, y);
-    doc.moveDown(0.5);
+
+    const rowH = 20;
+    if (rowIndex % 2 === 1) {
+      doc.rect(leftMargin, tableY, pageWidth, rowH).fill(COLORS.bgLight);
+    }
+
+    doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.text);
+    doc.text(tx.counterpartyName || "", cols[0].x + 4, tableY + 6, { width: cols[0].w - 8, lineBreak: false });
+    doc.text(TX_TYPE_LABELS[tx.txType] || tx.txType, cols[1].x + 4, tableY + 6, { width: cols[1].w - 8 });
+    doc.fontSize(7).fillColor(COLORS.textLight);
+    doc.text(tx.description || "-", cols[2].x + 4, tableY + 6, { width: cols[2].w - 8, lineBreak: false });
+
+    const isDebit = tx.txType === "sale" || tx.txType === "purchase";
+    doc.font(FONT_BOLD).fontSize(8).fillColor(isDebit ? COLORS.danger : COLORS.success);
+    doc.text(formatCurrency(tx.amount), cols[3].x + 4, tableY + 6, { width: cols[3].w - 8 });
+
+    tableY += rowH;
+    rowIndex++;
+  }
+
+  doc.moveTo(leftMargin, tableY).lineTo(rightEdge, tableY).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+  doc.fillColor(COLORS.text);
+
+  const pageCount = doc.bufferedPageRange().count;
+  for (let i = 0; i < pageCount; i++) {
+    doc.switchToPage(i);
+    drawFooter(doc, leftMargin, pageWidth, i, pageCount);
   }
 
   return doc;
