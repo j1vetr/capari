@@ -5,11 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   Calendar, Download, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays, Database
+  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays, Database, Trash2, AlertTriangle
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, todayISO } from "@/lib/formatters";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { TransactionWithCounterparty } from "@shared/schema";
 
 type DailyReport = {
@@ -40,6 +44,11 @@ export default function Reports() {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetDone, setResetDone] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const { toast } = useToast();
 
   const { data: dailyReport, isLoading: dailyLoading } = useQuery<DailyReport>({
     queryKey: ["/api/reports/daily", selectedDate],
@@ -435,6 +444,79 @@ export default function Reports() {
           ) : null}
         </>
       )}
+
+      {!resetDone && (
+        <Card className="border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/10">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex items-center justify-center w-9 h-9 rounded-md bg-red-100 dark:bg-red-950/30 flex-shrink-0">
+                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-red-800 dark:text-red-300">Verileri Sıfırla</p>
+                <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-0.5">
+                  Tum cariler, islemler, urunler ve stok verileri kalıcı olarak silinir. Bu islem geri alınamaz.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 gap-1.5 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400"
+                  onClick={() => { setResetDialogOpen(true); setResetConfirmText(""); }}
+                  data-testid="button-open-reset"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Verileri Sıfırla
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-700 dark:text-red-400">Verileri Sıfırla</DialogTitle>
+            <DialogDescription>
+              Bu islem tum carileri, islemleri, urunleri ve stok verilerini kalıcı olarak siler. Geri alınamaz.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-gray-700 dark:text-foreground">
+              Onaylamak icin asagıya <span className="font-bold text-red-600 dark:text-red-400">SIFIRLA</span> yazın:
+            </p>
+            <Input
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              placeholder="SIFIRLA"
+              data-testid="input-reset-confirm"
+            />
+            <Button
+              variant="destructive"
+              disabled={resetConfirmText !== "SIFIRLA" || resetting}
+              className="gap-1.5"
+              onClick={async () => {
+                setResetting(true);
+                try {
+                  await apiRequest("POST", "/api/admin/reset", { confirm: "SIFIRLA" });
+                  toast({ title: "Veriler sıfırlandı", description: "Tum veriler basarıyla silindi." });
+                  setResetDialogOpen(false);
+                  setResetDone(true);
+                  queryClient.clear();
+                } catch (e: any) {
+                  toast({ title: "Hata", description: e.message, variant: "destructive" });
+                } finally {
+                  setResetting(false);
+                }
+              }}
+              data-testid="button-confirm-reset"
+            >
+              <Trash2 className="w-4 h-4" />
+              {resetting ? "Siliniyor..." : "Kalıcı Olarak Sil"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
