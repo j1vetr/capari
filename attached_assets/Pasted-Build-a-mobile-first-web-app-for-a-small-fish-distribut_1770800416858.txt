@@ -1,0 +1,124 @@
+Build a mobile-first web app for a small fish distribution shop named "Çapari Balık Dağıtım".
+Main goal: replace a paper ledger (kara defter) with an easy accounting (cari) system.
+
+TECH / CONSTRAINTS
+- Use Node.js (Express) backend + PostgreSQL database ONLY.
+- No external auth providers. No multi-user / roles. Single admin mode is enough.
+- Mobile-first UI (tablet/phone) with large buttons, minimal typing, fast flows.
+- Turkish UI texts.
+- Must run on Replit and include setup instructions + .env example.
+- Use database migrations (SQL migration files) and seed data for demo.
+
+CORE CONCEPT
+There are two kinds of counterparties:
+1) Customers (Müşteriler) -> we track receivables (alacak)
+2) Suppliers (Tedarikçiler) -> we track payables (borç)
+
+Everything is recorded as "Transactions" (Hareketler).
+Transaction types:
+- SALE (SATIŞ)          -> increases customer debt
+- COLLECTION (TAHSİLAT) -> decreases customer debt
+- PURCHASE (ALIM)       -> increases supplier debt
+- PAYMENT (ÖDEME)       -> decreases supplier debt
+
+DATA MODEL (PostgreSQL)
+Create tables:
+1) counterparties
+- id (uuid pk)
+- type (customer | supplier)
+- name (text, required)
+- phone (text, optional)
+- notes (text, optional)
+- created_at, updated_at
+
+2) transactions
+- id (uuid pk)
+- counterparty_id (fk)
+- tx_type (sale|collection|purchase|payment)
+- amount (numeric(12,2), required, always positive input)
+- description (text, optional)
+- tx_date (date, default today)
+- created_at
+
+3) optional: cash_accounts (for future, but keep simple)
+- id, name (cash/bank/pos) + transactions can reference it (nullable)
+
+RULES / CALCULATIONS
+- Customer balance = sum(sale) - sum(collection)   (positive means customer owes us)
+- Supplier balance = sum(purchase) - sum(payment)  (positive means we owe supplier)
+- Never delete transactions from UI. Implement "reverse transaction" feature:
+  - A “Düzelt” button creates a compensating transaction of the opposite type with same amount and a link to original (add reversed_of uuid nullable in transactions).
+  - Keep audit trail.
+
+PAGES / UI (mobile-first)
+1) Dashboard (Ana Sayfa)
+- Cards:
+  - Toplam Alacak (total receivables)
+  - Toplam Borç (total payables)
+  - Bugünkü Satış
+  - Bugünkü Tahsilat
+  - Bugünkü Alım
+  - Bugünkü Ödeme
+- A simple 7-day sales chart (optional basic)
+- Big primary button: "Hızlı İşlem"
+
+2) Quick Transaction (Hızlı İşlem) - the most important screen
+- Search/select counterparty (single search box, shows results as you type)
+- If not found: quick add modal (name + type + phone optional)
+- Choose type (Satış/Tahsilat/Alım/Ödeme) with large buttons
+- Enter amount (numeric keypad)
+- Optional note
+- Save -> success toast and reset form for next entry
+- Keyboard-friendly: Enter saves
+
+3) Counterparty List
+- Tabs: Müşteriler / Tedarikçiler
+- Search
+- Show name + current balance (colored)
+- Tap to open detail
+
+4) Counterparty Detail (Cari Kartı)
+- Header: name, phone, balance
+- Actions:
+  - Add transaction
+  - Export PDF (A4 printable statement)
+  - WhatsApp share (generate a clean text summary for last N transactions + total)
+- Transaction list with filters (date range, type)
+- Each row: date, type, amount, note
+- Each row has "Düzelt" (reverse) action
+
+5) Reports (Raporlar)
+- Daily summary for selected date:
+  - totals by type
+  - list of transactions
+  - export PDF
+- Optional: date range totals
+
+EXPORTS
+- PDF generation server-side (A4):
+  - Shop title + date
+  - Counterparty statement with transactions and totals
+  - Keep it clean, print-friendly
+- WhatsApp share:
+  - Create a pre-filled WhatsApp Web link with formatted Turkish text:
+    "Çapari Balık Dağıtım - Cari Özeti
+     Firma: ...
+     Toplam: ...
+     Son işlemler: ..."
+
+QUALITY REQUIREMENTS
+- Validate inputs strictly (amount > 0, name required).
+- Prevent duplicate quick submits.
+- Use proper numeric handling in PostgreSQL (no float).
+- Add indexes on transactions(counterparty_id, tx_date).
+- Provide full README:
+  - how to set up PostgreSQL on Replit
+  - env vars
+  - run migrations
+  - start app
+
+DELIVERABLES
+- Working app with both backend and frontend.
+- Clean folder structure.
+- SQL migrations + seed script.
+- No placeholder pages; implement all core flows above.
