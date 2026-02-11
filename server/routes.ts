@@ -146,8 +146,11 @@ export async function registerRoutes(
   app.patch("/api/counterparties/:id", async (req, res) => {
     try {
       const updateSchema = z.object({
-        paymentDueDay: z.number().int().min(1).max(31).nullable(),
-      });
+        name: z.string().min(1).optional(),
+        phone: z.string().nullable().optional(),
+        notes: z.string().nullable().optional(),
+        paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
+      }).refine(data => Object.keys(data).length > 0, { message: "En az bir alan gerekli" });
       const parsed = updateSchema.parse(req.body);
       const updated = await storage.updateCounterparty(req.params.id, parsed);
       res.json(updated);

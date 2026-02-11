@@ -47,6 +47,9 @@ export default function CounterpartyDetail() {
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
   const [editingDueDay, setEditingDueDay] = useState(false);
   const [dueDayValue, setDueDayValue] = useState("");
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
 
   const { data: party, isLoading: partyLoading } = useQuery<CounterpartyWithBalance>({
     queryKey: ["/api/counterparties", params.id],
@@ -101,6 +104,19 @@ export default function CounterpartyDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({ title: "Ödeme günü güncellendi" });
       setEditingDueDay(false);
+    },
+  });
+
+  const updateInfoMutation = useMutation({
+    mutationFn: async (data: { name: string; phone: string | null }) => {
+      const res = await apiRequest("PATCH", `/api/counterparties/${params.id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
+      toast({ title: "Firma bilgileri güncellendi" });
+      setEditingInfo(false);
     },
   });
 
@@ -163,20 +179,31 @@ export default function CounterpartyDetail() {
   const buildWhatsAppMessage = () => {
     if (!party || !txList) return "";
     const lastTxs = txList.slice(0, 5);
-    let msg = `*Çapari Balık Dağıtım*\n*Cari Özeti*\n\n`;
-    msg += `Firma: ${party.name}\n`;
-    msg += `Bakiye: ${formatCurrency(party.balance)}\n`;
-    msg += `Tarih: ${new Date().toLocaleDateString("tr-TR")}\n\n`;
+    const bal = parseFloat(party.balance);
+    const balLabel = party.type === "customer"
+      ? (bal > 0 ? "Alacağımız" : bal < 0 ? "Borcumuz" : "Bakiye")
+      : (bal > 0 ? "Borcumuz" : bal < 0 ? "Alacağımız" : "Bakiye");
+
+    let msg = `🐟 *Çapari Balık Dağıtım*\n`;
+    msg += `📋 *Cari Hesap Özeti*\n\n`;
+    msg += `🏢 *${party.name}*\n`;
+    msg += `📅 ${new Date().toLocaleDateString("tr-TR")}\n\n`;
+    msg += `💰 *${balLabel}: ${formatCurrency(party.balance)}*\n\n`;
+
     if (lastTxs.length > 0) {
-      msg += `Son ${lastTxs.length} İşlem:\n`;
-      msg += `${"─".repeat(20)}\n`;
+      msg += `📝 *Son ${lastTxs.length} İşlem:*\n`;
+      msg += `━━━━━━━━━━━━━━━━━━━━\n`;
       lastTxs.forEach((tx) => {
-        msg += `${formatDate(tx.txDate)} | ${txTypeLabel(tx.txType)} | ${formatCurrency(tx.amount)}`;
-        if (tx.description) msg += `\n   ${tx.description}`;
-        msg += `\n`;
+        const icon = tx.txType === "sale" ? "🛒" : tx.txType === "collection" ? "💵" : tx.txType === "purchase" ? "📦" : "💳";
+        msg += `${icon} ${formatDate(tx.txDate)} - ${txTypeLabel(tx.txType)}\n`;
+        msg += `     *${formatCurrency(tx.amount)}*`;
+        if (tx.description) msg += `\n     _${tx.description}_`;
+        msg += `\n\n`;
       });
-      msg += `${"─".repeat(20)}\n`;
+      msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     }
+
+    msg += `\n_Bu mesaj Çapari Balık Dağıtım cari takip sisteminden gönderilmiştir._`;
     return msg;
   };
 
@@ -243,7 +270,24 @@ export default function CounterpartyDetail() {
           {partyLoading ? (
             <Skeleton className="h-6 w-40" />
           ) : (
-            <h1 className="text-lg font-bold tracking-tight text-gray-900 dark:text-foreground truncate">{party?.name}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-lg font-bold tracking-tight text-gray-900 dark:text-foreground truncate">{party?.name}</h1>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0"
+                onClick={() => {
+                  if (party) {
+                    setEditName(party.name);
+                    setEditPhone(party.phone || "");
+                    setEditingInfo(true);
+                  }
+                }}
+                data-testid="button-edit-info"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           )}
           <p className="text-xs text-gray-400 dark:text-muted-foreground">Cari Kartı</p>
         </div>
@@ -739,6 +783,66 @@ export default function CounterpartyDetail() {
             >
               {reverseMutation.isPending ? "İşleniyor..." : "Düzelt"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingInfo} onOpenChange={setEditingInfo}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-sky-500" />
+              Firma Bilgilerini Düzenle
+            </DialogTitle>
+            <DialogDescription>
+              Firma adını ve telefon numarasını güncelleyin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <div>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                Firma Adı
+              </Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Firma adı"
+                data-testid="input-edit-name"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                Telefon
+              </Label>
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="05xx xxx xx xx"
+                data-testid="input-edit-phone"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEditingInfo(false)}>
+                Vazgeç
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (!editName.trim()) {
+                    toast({ title: "Firma adı boş olamaz", variant: "destructive" });
+                    return;
+                  }
+                  updateInfoMutation.mutate({
+                    name: editName.trim(),
+                    phone: editPhone.trim() || null,
+                  });
+                }}
+                disabled={updateInfoMutation.isPending}
+                data-testid="button-save-info"
+              >
+                {updateInfoMutation.isPending ? "Kaydediliyor..." : "Kaydet"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
