@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   TrendingUp, TrendingDown, ShoppingCart, ArrowDownToLine,
   Banknote, ArrowUpFromLine, Plus, ChevronRight, CalendarDays, Users,
-  Crown, AlertTriangle, Clock, BarChart3, Store, Truck, Layers
+  Crown, AlertTriangle, Clock, BarChart3, Store, Truck
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg } from "@/lib/formatters";
 import type { DashboardSummary, StatsData, TransactionWithCounterparty } from "@shared/schema";
@@ -237,14 +237,10 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2">
         <Button variant="outline" className="h-11 gap-1.5 text-xs font-semibold" onClick={() => navigate("/quick")} data-testid="button-quick-tx">
           <Plus className="w-4 h-4" />
           Hızlı İşlem
-        </Button>
-        <Button variant="outline" className="h-11 gap-1.5 text-xs font-semibold" onClick={() => navigate("/bulk")} data-testid="button-bulk-tx">
-          <Layers className="w-4 h-4" />
-          Toplu Tahsilat
         </Button>
       </div>
 

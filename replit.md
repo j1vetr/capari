@@ -17,7 +17,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - `server/routes.ts` - Express API routes
 - `server/pdf.ts` - PDF generation for counterparty statements and daily reports
 - `server/seed.ts` - Demo seed data (customers, suppliers, transactions)
-- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties, counterparty-detail, reports, bulk-payment
+- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties, counterparty-detail, reports
 - `client/src/lib/formatters.ts` - Currency/date formatting utilities (Turkish locale)
 
 ## Key Features
@@ -27,7 +27,6 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - Counterparty list with tabs (Müşteriler/Tedarikçiler) and balance display
 - Counterparty detail: balance, transaction history with date range filtering + pagination, reverse (Düzelt) feature, delete counterparty
 - Global search dialog in header for quick counterparty lookup
-- Bulk collection/payment screen at /bulk
 - PDF export for counterparty statements and daily reports
 - Monthly report page with daily breakdown
 - CSV export for counterparties and transactions
