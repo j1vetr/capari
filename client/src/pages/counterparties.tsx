@@ -35,7 +35,7 @@ export default function Counterparties() {
           <p className="text-xs font-medium text-gray-400 dark:text-muted-foreground uppercase tracking-wider mb-0.5">Cari Hesaplar</p>
           <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-foreground">Firmalar</h2>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/quick")} data-testid="button-add-party">
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/islem-ekle")} data-testid="button-add-party">
           <UserPlus className="w-4 h-4" />
           Yeni Ekle
         </Button>
@@ -121,7 +121,7 @@ export default function Counterparties() {
             <Card
               key={p.id}
               className="hover-elevate active-elevate-2 cursor-pointer"
-              onClick={() => navigate(`/counterparties/${p.id}`)}
+              onClick={() => navigate(`/cariler/${p.id}`)}
               data-testid={`card-party-${p.id}`}
             >
               <CardContent className="p-3 flex items-center gap-3">

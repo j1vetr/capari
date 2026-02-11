@@ -22,10 +22,10 @@ import Login from "@/pages/login";
 
 const NAV_ITEMS = [
   { path: "/", label: "Ana Sayfa", icon: LayoutDashboard, match: (l: string) => l === "/" },
-  { path: "/quick", label: "İşlem Ekle", icon: Plus, match: (l: string) => l.startsWith("/quick") },
-  { path: "/counterparties", label: "Cariler", icon: Users, match: (l: string) => l.startsWith("/counterparties") },
-  { path: "/stock", label: "Stok", icon: Package, match: (l: string) => l.startsWith("/stock") },
-  { path: "/reports", label: "Raporlar", icon: FileBarChart, match: (l: string) => l.startsWith("/reports") },
+  { path: "/islem-ekle", label: "İşlem Ekle", icon: Plus, match: (l: string) => l.startsWith("/islem-ekle") },
+  { path: "/cariler", label: "Cariler", icon: Users, match: (l: string) => l.startsWith("/cariler") },
+  { path: "/stok", label: "Stok", icon: Package, match: (l: string) => l.startsWith("/stok") },
+  { path: "/raporlar", label: "Raporlar", icon: FileBarChart, match: (l: string) => l.startsWith("/raporlar") },
 ];
 
 function BottomNav() {
@@ -47,7 +47,7 @@ function BottomNav() {
                 data-testid={`nav-item-${item.path.replace("/", "") || "home"}`}
               >
                 <div className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${isActive ? "bg-sky-50 dark:bg-sky-950/30" : ""}`}>
-                  <Icon className={`w-5 h-5 ${item.path === "/quick" && !isActive ? "stroke-[2.5]" : ""}`} />
+                  <Icon className={`w-5 h-5 ${item.path === "/islem-ekle" && !isActive ? "stroke-[2.5]" : ""}`} />
                 </div>
                 <span className="text-[10px] font-semibold leading-tight tracking-wide">{item.label}</span>
               </div>
@@ -63,11 +63,11 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/quick" component={QuickTransaction} />
-      <Route path="/counterparties" component={Counterparties} />
-      <Route path="/counterparties/:id" component={CounterpartyDetail} />
-      <Route path="/stock" component={Stock} />
-      <Route path="/reports" component={Reports} />
+      <Route path="/islem-ekle" component={QuickTransaction} />
+      <Route path="/cariler" component={Counterparties} />
+      <Route path="/cariler/:id" component={CounterpartyDetail} />
+      <Route path="/stok" component={Stock} />
+      <Route path="/raporlar" component={Reports} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -166,7 +166,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               <div
                 key={c.id}
                 className="flex items-center gap-3 p-2.5 rounded-md cursor-pointer hover-elevate"
-                onClick={() => { setSearchOpen(false); navigate(`/counterparties/${c.id}`); }}
+                onClick={() => { setSearchOpen(false); navigate(`/cariler/${c.id}`); }}
                 data-testid={`search-result-${c.id}`}
               >
                 <div className={`flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0 ${c.type === "customer" ? "bg-sky-50 dark:bg-sky-950/30" : "bg-amber-50 dark:bg-amber-950/30"}`}>

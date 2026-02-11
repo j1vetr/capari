@@ -154,7 +154,7 @@ export default function CounterpartyDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       toast({ title: "Cari silindi" });
-      navigate("/counterparties");
+      navigate("/cariler");
     },
     onError: (err: Error) => {
       toast({ title: "Silinemedi", description: err.message, variant: "destructive" });
@@ -308,7 +308,7 @@ export default function CounterpartyDetail() {
   return (
     <div className="flex flex-col gap-4 p-4 pb-24 max-w-lg mx-auto">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/counterparties")} data-testid="button-back-detail">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/cariler")} data-testid="button-back-detail">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1 min-w-0">

@@ -238,7 +238,7 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-2">
-        <Button variant="outline" className="h-11 gap-1.5 text-xs font-semibold" onClick={() => navigate("/quick")} data-testid="button-quick-tx">
+        <Button variant="outline" className="h-11 gap-1.5 text-xs font-semibold" onClick={() => navigate("/islem-ekle")} data-testid="button-quick-tx">
           <Plus className="w-4 h-4" />
           Hızlı İşlem
         </Button>
@@ -259,7 +259,7 @@ export default function Dashboard() {
                 <div
                   key={tx.id}
                   className="flex items-center gap-2.5 p-2 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
-                  onClick={() => navigate(`/counterparties/${tx.counterpartyId}`)}
+                  onClick={() => navigate(`/cariler/${tx.counterpartyId}`)}
                   data-testid={`row-recent-tx-${tx.id}`}
                 >
                   <div className={`flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0 ${txTypeBg(tx.txType)}`}>
@@ -329,7 +329,7 @@ export default function Dashboard() {
                 <div
                   key={d.id}
                   className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
-                  onClick={() => navigate(`/counterparties/${d.id}`)}
+                  onClick={() => navigate(`/cariler/${d.id}`)}
                   data-testid={`row-debtor-${d.id}`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -363,7 +363,7 @@ export default function Dashboard() {
                 <div
                   key={c.id}
                   className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
-                  onClick={() => navigate(`/counterparties/${c.id}`)}
+                  onClick={() => navigate(`/cariler/${c.id}`)}
                   data-testid={`row-creditor-${c.id}`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -397,7 +397,7 @@ export default function Dashboard() {
                 <div
                   key={p.id}
                   className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-gray-50 dark:bg-muted/30 cursor-pointer hover-elevate"
-                  onClick={() => navigate(`/counterparties/${p.id}`)}
+                  onClick={() => navigate(`/cariler/${p.id}`)}
                   data-testid={`row-payment-${p.id}`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -432,7 +432,7 @@ export default function Dashboard() {
         <Button
           size="lg"
           className="h-14 text-sm font-semibold gap-2"
-          onClick={() => navigate("/quick")}
+          onClick={() => navigate("/islem-ekle")}
           data-testid="button-quick-transaction"
         >
           <Plus className="w-5 h-5" />
@@ -442,7 +442,7 @@ export default function Dashboard() {
           variant="outline"
           size="lg"
           className="h-14 text-sm font-semibold gap-2"
-          onClick={() => navigate("/counterparties")}
+          onClick={() => navigate("/cariler")}
           data-testid="button-go-counterparties"
         >
           <Users className="w-5 h-5" />
