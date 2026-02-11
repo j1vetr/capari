@@ -118,8 +118,10 @@ export default function CounterpartyDetail() {
     window.open(`/api/counterparties/${params.id}/pdf`, "_blank");
   };
 
-  const handleWhatsApp = () => {
-    if (!party || !txList) return;
+  const [whatsappSending, setWhatsappSending] = useState(false);
+
+  const buildWhatsAppMessage = () => {
+    if (!party || !txList) return "";
     const lastTxs = txList.slice(0, 5);
     let msg = `*Çapari Balık Dağıtım*\n*Cari Özeti*\n\n`;
     msg += `Firma: ${party.name}\n`;
@@ -135,11 +137,35 @@ export default function CounterpartyDetail() {
       });
       msg += `${"─".repeat(20)}\n`;
     }
-    const encoded = encodeURIComponent(msg);
-    const url = party.phone
-      ? `https://wa.me/${party.phone.replace(/\D/g, "")}?text=${encoded}`
-      : `https://wa.me/?text=${encoded}`;
-    window.open(url, "_blank");
+    return msg;
+  };
+
+  const handleWhatsApp = async () => {
+    if (!party || !txList) return;
+    const msg = buildWhatsAppMessage();
+
+    if (party.phone) {
+      setWhatsappSending(true);
+      try {
+        const res = await apiRequest("POST", "/api/whatsapp/send", {
+          receiver: party.phone,
+          message: msg,
+        });
+        const result = await res.json();
+        if (result.success) {
+          toast({ title: "WhatsApp mesajı gönderildi" });
+        } else {
+          toast({ title: "Mesaj gönderilemedi", description: result.message, variant: "destructive" });
+        }
+      } catch (e: any) {
+        toast({ title: "WhatsApp gönderilemedi", description: e.message, variant: "destructive" });
+      } finally {
+        setWhatsappSending(false);
+      }
+    } else {
+      const encoded = encodeURIComponent(msg);
+      window.open(`https://wa.me/?text=${encoded}`, "_blank");
+    }
   };
 
   const filtered = txList?.filter((tx) => filterType === "all" || tx.txType === filterType) || [];
@@ -311,9 +337,9 @@ export default function CounterpartyDetail() {
               <Download className="w-4 h-4" />
               PDF İndir
             </Button>
-            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsApp} data-testid="button-whatsapp">
+            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsApp} disabled={whatsappSending} data-testid="button-whatsapp">
               <MessageCircle className="w-4 h-4" />
-              WhatsApp
+              {whatsappSending ? "Gönderiliyor..." : "WhatsApp"}
             </Button>
           </div>
         </>

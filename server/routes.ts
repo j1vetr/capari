@@ -150,5 +150,53 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/whatsapp/send", async (req, res) => {
+    try {
+      const schema = z.object({
+        receiver: z.string().min(10),
+        message: z.string().min(1),
+      });
+      const { receiver, message } = schema.parse(req.body);
+      const apiKey = process.env.WPILETI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "WhatsApp API anahtarı tanımlı değil" });
+      }
+
+      const phone = receiver.replace(/\D/g, "");
+      const formattedPhone = phone.startsWith("90") ? phone : `90${phone}`;
+
+      const response = await fetch("https://my.wpileti.com/api/send-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "*/*",
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+          receiver: formattedPhone,
+          data: { message },
+        }),
+      });
+
+      let result: any;
+      try {
+        result = await response.json();
+      } catch {
+        const text = await response.text().catch(() => "");
+        result = { message: text || "Bilinmeyen hata" };
+      }
+
+      if (!response.ok) {
+        return res.status(response.status).json({ success: false, message: result?.message || "Mesaj gönderilemedi" });
+      }
+      res.json({ success: true, result });
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }
