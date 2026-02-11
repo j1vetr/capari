@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCounterpartySchema, insertTransactionSchema, insertProductSchema } from "@shared/schema";
 import { z } from "zod";
-import { generateCounterpartyPDF, generateDailyReportPDF } from "./pdf";
+import { generateCounterpartyPDF, generateDailyReportPDF, generateAllCounterpartiesPDF } from "./pdf";
 
 const APP_PASSWORD = process.env.LOGIN_PASSWORD || "capari2024";
 
@@ -411,6 +411,123 @@ export async function registerRoutes(
     } catch (e: any) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/export/counterparties/pdf", requireAuth, async (req, res) => {
+    try {
+      const counterparties = await storage.getCounterparties();
+      const transactionsByCounterparty = new Map<string, any[]>();
+      for (const party of counterparties) {
+        const { transactions } = await storage.getTransactionsByCounterparty(party.id, { limit: 10 });
+        transactionsByCounterparty.set(party.id, transactions);
+      }
+      const doc = generateAllCounterpartiesPDF(counterparties, transactionsByCounterparty);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="capari-cari-rapor-${new Date().toISOString().split("T")[0]}.pdf"`);
+      doc.pipe(res);
+      doc.end();
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  const { randomBytes } = await import("crypto");
+  const tempPdfStore = new Map<string, { buffer: Buffer; expires: number }>();
+
+  setInterval(() => {
+    const now = Date.now();
+    tempPdfStore.forEach((val, key) => {
+      if (now > val.expires) tempPdfStore.delete(key);
+    });
+  }, 60000);
+
+  app.get("/api/temp-pdf/:token", (req, res) => {
+    const entry = tempPdfStore.get(req.params.token);
+    if (!entry || Date.now() > entry.expires) {
+      tempPdfStore.delete(req.params.token);
+      return res.status(404).json({ message: "PDF bulunamadi veya suresi dolmus" });
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="capari-cari-rapor.pdf"`);
+    res.send(entry.buffer);
+    tempPdfStore.delete(req.params.token);
+  });
+
+  app.post("/api/whatsapp/send-pdf", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        receiver: z.string().min(10),
+        counterpartyId: z.string().uuid(),
+        message: z.string().optional(),
+      });
+      const { receiver, counterpartyId, message } = schema.parse(req.body);
+      const apiKey = process.env.WPILETI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "WhatsApp API anahtari tanimli degil" });
+      }
+
+      let phone = receiver.replace(/\D/g, "");
+      if (phone.startsWith("0")) phone = phone.substring(1);
+      const formattedPhone = phone.startsWith("90") ? phone : `90${phone}`;
+
+      const party = await storage.getCounterparty(counterpartyId);
+      if (!party) {
+        return res.status(404).json({ message: "Cari bulunamadi" });
+      }
+      const { transactions } = await storage.getTransactionsByCounterparty(counterpartyId, {});
+      const doc = generateCounterpartyPDF(party, transactions);
+
+      const chunks: Buffer[] = [];
+      doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+      await new Promise<void>((resolve, reject) => {
+        doc.on("end", resolve);
+        doc.on("error", reject);
+        doc.end();
+      });
+      const pdfBuffer = Buffer.concat(chunks);
+
+      const token = randomBytes(32).toString("hex");
+      tempPdfStore.set(token, { buffer: pdfBuffer, expires: Date.now() + 3 * 60 * 1000 });
+
+      const host = req.headers.host || "localhost:5000";
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const pdfUrl = `${protocol}://${host}/api/temp-pdf/${token}`;
+
+      const response = await fetch("https://my.wpileti.com/api/send-media", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "*/*",
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+          receiver: formattedPhone,
+          data: {
+            url: pdfUrl,
+            media_type: "file",
+            caption: message || `${party.name} - Cari Hesap Ekstre`,
+          },
+        }),
+      });
+
+      let result: any;
+      try {
+        result = await response.json();
+      } catch {
+        const text = await response.text().catch(() => "");
+        result = { message: text || "Bilinmeyen hata" };
+      }
+
+      if (!response.ok) {
+        return res.status(response.status).json({ success: false, message: result?.message || "PDF gonderilemedi" });
+      }
+      res.json({ success: true, result });
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Gecersiz veri" });
       }
       res.status(500).json({ message: e.message });
     }

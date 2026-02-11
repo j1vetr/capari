@@ -78,6 +78,11 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - GET /api/export/counterparties/csv - CSV export of counterparties
 - GET /api/export/transactions/csv - CSV export of transactions
 - GET /api/export/backup/json - Full JSON backup download
+- GET /api/export/counterparties/pdf - All counterparties PDF report
+- POST /api/whatsapp/send - Send WhatsApp text message via wpileti API
+- POST /api/whatsapp/send-pdf - Generate counterparty PDF and send via WhatsApp SendMedia API (requires counterpartyId, receiver)
+- GET /api/temp-pdf/:token - One-time temporary PDF download (used by WhatsApp API, crypto token, 3 min expiry)
+- POST /api/admin/reset - Reset all data (requires confirm: "SIFIRLA")
 
 ## Running
 - `npm run dev` starts Express + Vite on port 5000

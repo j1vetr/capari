@@ -280,6 +280,34 @@ export default function CounterpartyDetail() {
     }
   };
 
+  const [pdfSending, setPdfSending] = useState(false);
+
+  const handleWhatsAppPDF = async () => {
+    if (!party) return;
+    if (!party.phone) {
+      toast({ title: "Telefon numarasi gerekli", description: "PDF gondermek icin carinin telefon numarasi olmali.", variant: "destructive" });
+      return;
+    }
+    setPdfSending(true);
+    try {
+      const res = await apiRequest("POST", "/api/whatsapp/send-pdf", {
+        receiver: party.phone,
+        counterpartyId: party.id,
+        message: `${party.name} - Cari Hesap Ekstre\n${new Date().toLocaleDateString("tr-TR")}`,
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: "PDF WhatsApp ile gonderildi" });
+      } else {
+        toast({ title: "PDF gonderilemedi", description: result.message, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "PDF gonderilemedi", description: e.message, variant: "destructive" });
+    } finally {
+      setPdfSending(false);
+    }
+  };
+
   const filtered = txList?.filter((tx) => filterType === "all" || tx.txType === filterType) || [];
 
   const txTypeIcon = (type: string) => {
@@ -457,18 +485,24 @@ export default function CounterpartyDetail() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={() => setShowAddTx(true)} data-testid="button-add-tx">
               <Plus className="w-4 h-4" />
-              İşlem Ekle
+              Islem Ekle
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleExportPDF} data-testid="button-export-pdf">
               <Download className="w-4 h-4" />
-              PDF İndir
+              PDF Indir
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsApp} disabled={whatsappSending} data-testid="button-whatsapp">
               <MessageCircle className="w-4 h-4" />
-              {whatsappSending ? "Gönderiliyor..." : "WhatsApp"}
+              {whatsappSending ? "Gonderiyor..." : "WhatsApp"}
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsAppPDF} disabled={pdfSending || !party?.phone} data-testid="button-whatsapp-pdf">
+              <FileText className="w-4 h-4" />
+              {pdfSending ? "PDF Gonderiliyor..." : "PDF WhatsApp"}
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1 text-red-500 dark:text-red-400" onClick={() => setConfirmDelete(true)} data-testid="button-delete-counterparty">
               <Trash2 className="w-4 h-4" />
