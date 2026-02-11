@@ -34,24 +34,6 @@ app.use(express.urlencoded({ extended: false }));
 
 const PgStore = connectPgSimple(session);
 
-app.use(
-  session({
-    store: new PgStore({
-      pool: pool,
-      tableName: "session",
-      createTableIfMissing: false,
-    }),
-    secret: process.env.SESSION_SECRET || "capari-balik-secret-key",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: false,
-      httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    },
-  }),
-);
-
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -104,6 +86,24 @@ app.use((req, res, next) => {
   } finally {
     client.release();
   }
+
+  app.use(
+    session({
+      store: new PgStore({
+        pool: pool,
+        tableName: "session",
+        createTableIfMissing: false,
+      }),
+      secret: process.env.SESSION_SECRET || "capari-balik-secret-key",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: false,
+        httpOnly: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      },
+    }),
+  );
 
   const { seedDatabase } = await import("./seed");
   try {
