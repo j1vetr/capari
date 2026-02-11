@@ -282,27 +282,34 @@ export default function CounterpartyDetail() {
 
   const [pdfSending, setPdfSending] = useState(false);
 
-  const handleWhatsAppPDF = async () => {
-    if (!party) return;
+  const handleWhatsAppDetailed = async () => {
+    if (!party || !txList) return;
     if (!party.phone) {
-      toast({ title: "Telefon numarasi gerekli", description: "PDF gondermek icin carinin telefon numarasi olmali.", variant: "destructive" });
+      toast({ title: "Telefon numarasi gerekli", description: "Detayli cari gondermek icin telefon numarasi olmali.", variant: "destructive" });
       return;
     }
     setPdfSending(true);
     try {
-      const res = await apiRequest("POST", "/api/whatsapp/send-pdf", {
+      const msg = buildWhatsAppMessage() + "\n\n📎 _Detayli cari hesap ekstreniz PDF olarak iletilmektedir._";
+      const textRes = await apiRequest("POST", "/api/whatsapp/send", {
+        receiver: party.phone,
+        message: msg,
+      });
+      await textRes.json();
+
+      const pdfRes = await apiRequest("POST", "/api/whatsapp/send-pdf", {
         receiver: party.phone,
         counterpartyId: party.id,
-        message: `${party.name} - Cari Hesap Ekstre\n${new Date().toLocaleDateString("tr-TR")}`,
+        message: `${party.name} - Detayli Cari Hesap Ekstre`,
       });
-      const result = await res.json();
-      if (result.success) {
-        toast({ title: "PDF WhatsApp ile gonderildi" });
+      const pdfResult = await pdfRes.json();
+      if (pdfResult.success) {
+        toast({ title: "Detayli cari WhatsApp ile gonderildi" });
       } else {
-        toast({ title: "PDF gonderilemedi", description: result.message, variant: "destructive" });
+        toast({ title: "PDF gonderilemedi", description: pdfResult.message, variant: "destructive" });
       }
     } catch (e: any) {
-      toast({ title: "PDF gonderilemedi", description: e.message, variant: "destructive" });
+      toast({ title: "Gonderilemedi", description: e.message, variant: "destructive" });
     } finally {
       setPdfSending(false);
     }
@@ -496,13 +503,13 @@ export default function CounterpartyDetail() {
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsApp} disabled={whatsappSending} data-testid="button-whatsapp">
               <MessageCircle className="w-4 h-4" />
-              {whatsappSending ? "Gonderiyor..." : "WhatsApp"}
+              {whatsappSending ? "Gonderiyor..." : "Hizli Cari WhatsApp"}
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsAppPDF} disabled={pdfSending || !party?.phone} data-testid="button-whatsapp-pdf">
+            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsAppDetailed} disabled={pdfSending || !party?.phone} data-testid="button-whatsapp-pdf">
               <FileText className="w-4 h-4" />
-              {pdfSending ? "PDF Gonderiliyor..." : "PDF WhatsApp"}
+              {pdfSending ? "Gonderiliyor..." : "Detayli Cari WhatsApp"}
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1 text-red-500 dark:text-red-400" onClick={() => setConfirmDelete(true)} data-testid="button-delete-counterparty">
               <Trash2 className="w-4 h-4" />
