@@ -209,6 +209,38 @@ export default function CounterpartyDetail() {
                 </Badge>
               </div>
 
+              {party.invoiced && (party.taxNumber || party.taxOffice || party.companyTitle || party.address) && (
+                <div className="mt-2 p-3 rounded-md bg-white/50 dark:bg-black/10 border border-gray-100 dark:border-muted">
+                  <p className="text-[10px] font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider mb-2">Fatura Bilgileri</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {party.companyTitle && (
+                      <div className="col-span-2">
+                        <p className="text-[10px] text-gray-400 dark:text-muted-foreground">Unvan</p>
+                        <p className="text-xs font-medium text-gray-700 dark:text-foreground">{party.companyTitle}</p>
+                      </div>
+                    )}
+                    {party.taxNumber && (
+                      <div>
+                        <p className="text-[10px] text-gray-400 dark:text-muted-foreground">Vergi No</p>
+                        <p className="text-xs font-medium text-gray-700 dark:text-foreground">{party.taxNumber}</p>
+                      </div>
+                    )}
+                    {party.taxOffice && (
+                      <div>
+                        <p className="text-[10px] text-gray-400 dark:text-muted-foreground">Vergi Dairesi</p>
+                        <p className="text-xs font-medium text-gray-700 dark:text-foreground">{party.taxOffice}</p>
+                      </div>
+                    )}
+                    {party.address && (
+                      <div className="col-span-2 mt-1">
+                        <p className="text-[10px] text-gray-400 dark:text-muted-foreground">Adres</p>
+                        <p className="text-xs font-medium text-gray-700 dark:text-foreground">{party.address}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <Separator className="my-3 bg-gray-200/50 dark:bg-muted" />
 
               <div className="text-center">

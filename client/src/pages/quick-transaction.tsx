@@ -69,6 +69,10 @@ export default function QuickTransaction() {
   const [newType, setNewType] = useState<"customer" | "supplier">("customer");
   const [newPhone, setNewPhone] = useState("");
   const [newInvoiced, setNewInvoiced] = useState(false);
+  const [newTaxNumber, setNewTaxNumber] = useState("");
+  const [newTaxOffice, setNewTaxOffice] = useState("");
+  const [newCompanyTitle, setNewCompanyTitle] = useState("");
+  const [newAddress, setNewAddress] = useState("");
 
   const isSaleOrPurchase = txType === "sale" || txType === "purchase";
 
@@ -98,6 +102,10 @@ export default function QuickTransaction() {
       setNewName("");
       setNewPhone("");
       setNewInvoiced(false);
+      setNewTaxNumber("");
+      setNewTaxOffice("");
+      setNewCompanyTitle("");
+      setNewAddress("");
       toast({ title: "Yeni cari eklendi" });
     },
   });
@@ -618,8 +626,66 @@ export default function QuickTransaction() {
                 data-testid="switch-invoiced"
               />
             </div>
+            {newInvoiced && (
+              <div className="flex flex-col gap-3 p-3 rounded-md bg-sky-50/50 dark:bg-sky-950/10 border border-sky-100 dark:border-sky-900">
+                <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Fatura Bilgileri</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-[11px] text-gray-500 dark:text-muted-foreground mb-1 block">Vergi No</Label>
+                    <Input
+                      value={newTaxNumber}
+                      onChange={(e) => setNewTaxNumber(e.target.value)}
+                      placeholder="1234567890"
+                      className="bg-white dark:bg-card text-sm"
+                      data-testid="input-tax-number"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-gray-500 dark:text-muted-foreground mb-1 block">Vergi Dairesi</Label>
+                    <Input
+                      value={newTaxOffice}
+                      onChange={(e) => setNewTaxOffice(e.target.value)}
+                      placeholder="Örn: Karşıyaka"
+                      className="bg-white dark:bg-card text-sm"
+                      data-testid="input-tax-office"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-[11px] text-gray-500 dark:text-muted-foreground mb-1 block">Firma Unvanı</Label>
+                  <Input
+                    value={newCompanyTitle}
+                    onChange={(e) => setNewCompanyTitle(e.target.value)}
+                    placeholder="Örn: ABC Balık Tic. Ltd. Şti."
+                    className="bg-white dark:bg-card text-sm"
+                    data-testid="input-company-title"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-gray-500 dark:text-muted-foreground mb-1 block">Adres</Label>
+                  <Input
+                    value={newAddress}
+                    onChange={(e) => setNewAddress(e.target.value)}
+                    placeholder="Firma adresi"
+                    className="bg-white dark:bg-card text-sm"
+                    data-testid="input-address"
+                  />
+                </div>
+              </div>
+            )}
             <Button
-              onClick={() => createPartyMutation.mutate({ name: newName, type: newType, phone: newPhone || undefined, invoiced: newInvoiced })}
+              onClick={() => createPartyMutation.mutate({
+                name: newName,
+                type: newType,
+                phone: newPhone || undefined,
+                invoiced: newInvoiced,
+                ...(newInvoiced ? {
+                  taxNumber: newTaxNumber || undefined,
+                  taxOffice: newTaxOffice || undefined,
+                  companyTitle: newCompanyTitle || undefined,
+                  address: newAddress || undefined,
+                } : {}),
+              })}
               disabled={!newName.trim() || createPartyMutation.isPending}
               className="h-12 font-semibold"
               data-testid="button-save-counterparty"

@@ -28,7 +28,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - WhatsApp share with pre-filled message
 
 ## Data Model
-- **counterparties**: id (uuid), type (customer|supplier), name, phone, notes, invoiced (boolean, default false)
+- **counterparties**: id (uuid), type (customer|supplier), name, phone, notes, invoiced (boolean, default false), taxNumber, taxOffice, companyTitle, address
 - **transactions**: id (uuid), counterparty_id (fk), tx_type (sale|collection|purchase|payment), amount (numeric 12,2), description, tx_date, reversed_of (uuid nullable)
 
 ## Business Rules

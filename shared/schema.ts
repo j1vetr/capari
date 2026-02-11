@@ -10,6 +10,10 @@ export const counterparties = pgTable("counterparties", {
   phone: text("phone"),
   notes: text("notes"),
   invoiced: boolean("invoiced").default(false).notNull(),
+  taxNumber: text("tax_number"),
+  taxOffice: text("tax_office"),
+  companyTitle: text("company_title"),
+  address: text("address"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
