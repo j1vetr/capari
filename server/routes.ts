@@ -87,10 +87,6 @@ export async function registerRoutes(
     try {
       const party = await storage.getCounterparty(req.params.id);
       if (!party) return res.status(404).json({ message: "Cari bulunamadı" });
-      const balance = parseFloat(party.balance);
-      if (balance !== 0) {
-        return res.status(400).json({ message: "Bakiyesi sıfır olmayan cari silinemez. Önce bakiyeyi sıfırlayın." });
-      }
       await storage.deleteCounterparty(req.params.id);
       res.json({ message: "Cari silindi" });
     } catch (e: any) {

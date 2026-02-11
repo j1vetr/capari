@@ -109,13 +109,6 @@ app.use((req, res, next) => {
     }),
   );
 
-  const { seedDatabase } = await import("./seed");
-  try {
-    await seedDatabase();
-  } catch (e) {
-    console.log("Seed skipped or failed:", e);
-  }
-
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

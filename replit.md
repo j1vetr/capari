@@ -46,7 +46,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - Supplier balance = sum(purchase) - sum(payment) → positive = we owe supplier
 - Stock = sum(purchase quantities) - sum(sale quantities) per product
 - No deletion: "Düzelt" creates compensating reverse transaction (including stock reversal)
-- Counterparty deletion only allowed when balance is zero
+- Counterparty deletion allowed regardless of balance (deletes all related transactions)
 - Invoiced firms (faturalı): 1% KDV added separately on sale/purchase transactions
 - Transaction dates cannot be in the future
 - Sale transactions check stock availability before saving
@@ -86,7 +86,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 
 ## Running
 - `npm run dev` starts Express + Vite on port 5000
-- Database auto-seeds with demo data on first run
+- Database starts empty (no demo seed data)
 
 ## User Preferences
 - Emojis allowed ONLY in WhatsApp messages, not in UI
