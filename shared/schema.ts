@@ -33,6 +33,26 @@ export const transactions = pgTable("transactions", {
   index("idx_transactions_tx_date").on(table.txDate),
 ]);
 
+export const products = pgTable("products", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  unit: text("unit", { enum: ["kg", "kasa", "adet"] }).notNull().default("kg"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const transactionItems = pgTable("transaction_items", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: uuid("transaction_id").notNull().references(() => transactions.id),
+  productId: uuid("product_id").notNull().references(() => products.id),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_transaction_items_tx").on(table.transactionId),
+  index("idx_transaction_items_product").on(table.productId),
+]);
+
 export const insertCounterpartySchema = createInsertSchema(counterparties).omit({
   id: true,
   createdAt: true,
@@ -47,11 +67,31 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({
 export type InsertCounterparty = z.infer<typeof insertCounterpartySchema>;
 export type Counterparty = typeof counterparties.$inferSelect;
 
+export const insertProductSchema = createInsertSchema(products).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTransactionItemSchema = createInsertSchema(transactionItems).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 
+export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type Product = typeof products.$inferSelect;
+
+export type InsertTransactionItem = z.infer<typeof insertTransactionItemSchema>;
+export type TransactionItem = typeof transactionItems.$inferSelect;
+
 export type CounterpartyWithBalance = Counterparty & { balance: string };
 export type TransactionWithCounterparty = Transaction & { counterpartyName: string; counterpartyType: string };
+
+export type ProductWithStock = Product & { currentStock: string };
+
+export type TransactionItemWithProduct = TransactionItem & { productName: string; productUnit: string };
 
 export type DashboardSummary = {
   totalReceivables: string;
