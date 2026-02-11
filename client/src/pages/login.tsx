@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Fish, Lock, Eye, EyeOff } from "lucide-react";
+import { Lock, Eye, EyeOff } from "lucide-react";
 
 interface LoginProps {
   onSuccess: () => void;
@@ -47,8 +47,8 @@ export default function Login({ onSuccess }: LoginProps) {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-emerald-50 dark:from-background dark:via-background dark:to-background p-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-600 text-white mb-4 shadow-lg shadow-sky-200 dark:shadow-none">
-            <Fish className="w-9 h-9" />
+          <div className="w-20 h-20 mb-4">
+            <img src="/logo.png" alt="Çapari Balık" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-foreground">Çapari Balık</h1>
           <p className="text-sm text-gray-500 dark:text-muted-foreground mt-1">Dağıtım - Cari Takip Sistemi</p>

@@ -4,7 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LayoutDashboard, Plus, Users, FileBarChart, Fish, LogOut, Search, Store, Truck, Package } from "lucide-react";
+import { LayoutDashboard, Plus, Users, FileBarChart, LogOut, Search, Store, Truck, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -112,8 +112,8 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       <header className="sticky top-0 z-40 bg-white dark:bg-card border-b border-gray-100 dark:border-card-border">
         <div className="max-w-lg mx-auto flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-9 h-9 rounded-md bg-sky-600 text-white">
-              <Fish className="w-5 h-5" />
+            <div className="w-9 h-9">
+              <img src="/logo.png" alt="Çapari Balık" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-base font-bold tracking-tight leading-tight text-gray-900 dark:text-foreground">Çapari Balık</h1>
@@ -214,8 +214,8 @@ function App() {
         {authState === "loading" && (
           <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-background">
             <div className="flex flex-col items-center gap-4">
-              <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-600 text-white">
-                <Fish className="w-8 h-8" />
+              <div className="w-16 h-16">
+                <img src="/logo.png" alt="Çapari Balık" className="w-full h-full object-contain" />
               </div>
               <Skeleton className="h-4 w-32" />
             </div>
