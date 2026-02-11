@@ -40,6 +40,7 @@ export interface IStorage {
   updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product>;
   createTransactionWithItems(data: InsertTransaction, items: { productId: string; quantity: string; unitPrice?: string }[]): Promise<Transaction>;
   getTransactionItems(transactionId: string): Promise<TransactionItemWithProduct[]>;
+  resetAllData(): Promise<void>;
   getMonthlyReport(year: number, month: number): Promise<{
     totalSales: string;
     totalCollections: string;
@@ -489,6 +490,9 @@ export class DatabaseStorage implements IStorage {
       totalPayments: totalPayments.toFixed(2),
       transactions: txs,
     };
+  }
+  async resetAllData(): Promise<void> {
+    await db.execute(sql`TRUNCATE TABLE transaction_items, transactions, counterparties, products CASCADE`);
   }
 }
 

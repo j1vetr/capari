@@ -416,5 +416,18 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/reset", requireAuth, async (req, res) => {
+    try {
+      const { confirm } = req.body;
+      if (confirm !== "SIFIRLA") {
+        return res.status(400).json({ message: "Onay kodu gerekli: SIFIRLA" });
+      }
+      await storage.resetAllData();
+      res.json({ ok: true, message: "Tum veriler silindi" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }
