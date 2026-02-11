@@ -16,11 +16,20 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Phone, MessageCircle, Plus, Store, Truck,
   RotateCcw, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Download, Check, AlertCircle, FileText, Clock, Pencil
+  Download, Check, AlertCircle, FileText, Clock, Pencil, Trash2
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems } from "@/lib/formatters";
 import { ChevronDown, Fish } from "lucide-react";
 import type { CounterpartyWithBalance, Transaction } from "@shared/schema";
+
+type LineItem = {
+  id: number;
+  product: string;
+  quantity: string;
+  unitPrice: string;
+};
+
+let nextItemId = 1;
 
 export default function CounterpartyDetail() {
   const params = useParams<{ id: string }>();
@@ -30,6 +39,9 @@ export default function CounterpartyDetail() {
   const [txType, setTxType] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [lineItems, setLineItems] = useState<LineItem[]>([
+    { id: nextItemId++, product: "", quantity: "", unitPrice: "" },
+  ]);
   const [filterType, setFilterType] = useState<string>("all");
   const [confirmReverse, setConfirmReverse] = useState<string | null>(null);
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
@@ -59,6 +71,7 @@ export default function CounterpartyDetail() {
       setTxType("");
       setAmount("");
       setDescription("");
+      setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
     },
   });
 
@@ -92,24 +105,51 @@ export default function CounterpartyDetail() {
   });
 
   const isSaleOrPurchaseTx = txType === "sale" || txType === "purchase";
-  const detailKdvAmount = party?.invoiced && isSaleOrPurchaseTx ? (parseFloat(amount) || 0) * 0.01 : 0;
+
+  const lineItemTotal = (li: LineItem) => {
+    const q = parseFloat(li.quantity) || 0;
+    const p = parseFloat(li.unitPrice) || 0;
+    return q * p;
+  };
+
+  const addLineItem = () => {
+    setLineItems([...lineItems, { id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+  };
+
+  const removeLineItem = (id: number) => {
+    if (lineItems.length <= 1) return;
+    setLineItems(lineItems.filter((li) => li.id !== id));
+  };
+
+  const updateLineItem = (id: number, field: keyof LineItem, value: string) => {
+    setLineItems(lineItems.map((li) => li.id === id ? { ...li, [field]: value } : li));
+  };
+
+  const dialogSubtotal = isSaleOrPurchaseTx
+    ? lineItems.reduce((s, li) => s + lineItemTotal(li), 0)
+    : parseFloat(amount) || 0;
+
+  const detailKdvAmount = party?.invoiced && isSaleOrPurchaseTx ? dialogSubtotal * 0.01 : 0;
+  const dialogTotal = dialogSubtotal + detailKdvAmount;
+
+  const dialogDescription = isSaleOrPurchaseTx
+    ? lineItems
+      .filter((li) => li.product && lineItemTotal(li) > 0)
+      .map((li) => `${li.product} ${li.quantity}kg x ${formatCurrency(li.unitPrice)}`)
+      .join(", ") + (detailKdvAmount > 0 ? ` [KDV %1: ${formatCurrency(detailKdvAmount)}]` : "")
+    : description;
 
   const handleSaveTx = () => {
-    if (!txType || !amount) return;
-    const num = parseFloat(amount);
-    if (isNaN(num) || num <= 0) {
+    if (!txType) return;
+    if (dialogTotal <= 0) {
       toast({ title: "Geçersiz tutar", variant: "destructive" });
       return;
     }
-    const totalWithKdv = num + (party?.invoiced && isSaleOrPurchaseTx ? num * 0.01 : 0);
-    const descWithKdv = detailKdvAmount > 0
-      ? `${description || ""} [KDV %1: ${formatCurrency(detailKdvAmount)}]`.trim()
-      : description || undefined;
     createTxMutation.mutate({
       counterpartyId: params.id,
       txType,
-      amount: totalWithKdv.toFixed(2),
-      description: descWithKdv,
+      amount: dialogTotal.toFixed(2),
+      description: dialogDescription || undefined,
       txDate: new Date().toISOString().split("T")[0],
     });
   };
@@ -484,7 +524,7 @@ export default function CounterpartyDetail() {
       </div>
 
       <Dialog open={showAddTx} onOpenChange={setShowAddTx}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>İşlem Ekle</DialogTitle>
             <DialogDescription>{party?.name} için yeni işlem kaydet</DialogDescription>
@@ -499,7 +539,12 @@ export default function CounterpartyDetail() {
                   return (
                     <button
                       key={t.value}
-                      onClick={() => setTxType(t.value)}
+                      onClick={() => {
+                        setTxType(t.value);
+                        setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+                        setAmount("");
+                        setDescription("");
+                      }}
                       className={`flex items-center gap-2 p-3 rounded-md border transition-all ${isSelected
                         ? "ring-2 ring-sky-500 " + t.color
                         : "border-gray-200 dark:border-muted"
@@ -516,57 +561,152 @@ export default function CounterpartyDetail() {
                 })}
               </div>
             </div>
-            <div>
-              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">Tutar (₺)</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300 dark:text-muted-foreground">₺</span>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="0,00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="text-xl h-14 font-bold pl-9"
-                  data-testid="input-dialog-amount"
-                />
+
+            {txType && isSaleOrPurchaseTx && (
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Ürünler</Label>
+                  <Badge variant="secondary" className="text-[10px]">{lineItems.length} kalem</Badge>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  {lineItems.map((li, idx) => (
+                    <Card key={li.id} data-testid={`card-dialog-line-item-${li.id}`}>
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-[11px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Kalem {idx + 1}</span>
+                          {lineItems.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeLineItem(li.id)}
+                              data-testid={`button-dialog-remove-item-${li.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                            </Button>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Input
+                            placeholder="Ürün adı (örn: Levrek)"
+                            value={li.product}
+                            onChange={(e) => updateLineItem(li.id, "product", e.target.value)}
+                            className="text-sm"
+                            data-testid={`input-dialog-product-${li.id}`}
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                step="0.1"
+                                min="0"
+                                placeholder="Miktar (kg)"
+                                value={li.quantity}
+                                onChange={(e) => updateLineItem(li.id, "quantity", e.target.value)}
+                                className="text-sm pr-8"
+                                data-testid={`input-dialog-quantity-${li.id}`}
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-medium">kg</span>
+                            </div>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                placeholder="Birim fiyat"
+                                value={li.unitPrice}
+                                onChange={(e) => updateLineItem(li.id, "unitPrice", e.target.value)}
+                                className="text-sm pl-6"
+                                data-testid={`input-dialog-unit-price-${li.id}`}
+                              />
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-bold">₺</span>
+                            </div>
+                          </div>
+                          {lineItemTotal(li) > 0 && (
+                            <div className="flex items-center justify-end gap-1 mt-0.5">
+                              <span className="text-[11px] text-gray-400 dark:text-muted-foreground">Tutar:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency(lineItemTotal(li))}</span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full mt-2 gap-2 border-dashed border-gray-300 dark:border-muted text-gray-500 dark:text-muted-foreground"
+                  onClick={addLineItem}
+                  data-testid="button-dialog-add-line-item"
+                >
+                  <Plus className="w-4 h-4" />
+                  Yeni Kalem Ekle
+                </Button>
               </div>
-            </div>
-            <div>
-              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">Açıklama (opsiyonel)</Label>
-              <Textarea
-                placeholder="Örn: Levrek 5kg, Çipura 3kg..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="resize-none"
-                rows={2}
-                data-testid="input-dialog-description"
-              />
-            </div>
-            {detailKdvAmount > 0 && (
+            )}
+
+            {txType && !isSaleOrPurchaseTx && (
+              <>
+                <div>
+                  <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">Tutar (₺)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-300 dark:text-muted-foreground">₺</span>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0,00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="text-xl h-14 font-bold pl-9"
+                      data-testid="input-dialog-amount"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">Açıklama (opsiyonel)</Label>
+                  <Textarea
+                    placeholder="Örn: Nakit ödeme..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="resize-none"
+                    rows={2}
+                    data-testid="input-dialog-description"
+                  />
+                </div>
+              </>
+            )}
+
+            {txType && dialogSubtotal > 0 && (
               <div className="flex flex-col gap-1.5 p-3 rounded-md bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-gray-500 dark:text-muted-foreground">Ara Toplam</span>
-                  <span className="text-sm font-semibold text-gray-700 dark:text-foreground">{formatCurrency(parseFloat(amount) || 0)}</span>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-foreground">{formatCurrency(dialogSubtotal)}</span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-gray-500 dark:text-muted-foreground flex items-center gap-1">
-                    <FileText className="w-3 h-3" />
-                    KDV (%1)
-                  </span>
-                  <span className="text-sm font-semibold text-sky-600 dark:text-sky-400">{formatCurrency(detailKdvAmount)}</span>
-                </div>
-                <Separator />
+                {detailKdvAmount > 0 && (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-500 dark:text-muted-foreground flex items-center gap-1">
+                        <FileText className="w-3 h-3" />
+                        KDV (%1)
+                      </span>
+                      <span className="text-sm font-semibold text-sky-600 dark:text-sky-400">{formatCurrency(detailKdvAmount)}</span>
+                    </div>
+                    <Separator />
+                  </>
+                )}
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-gray-700 dark:text-foreground">Toplam</span>
-                  <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency((parseFloat(amount) || 0) + detailKdvAmount)}</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency(dialogTotal)}</span>
                 </div>
               </div>
             )}
+
             <Button
               onClick={handleSaveTx}
-              disabled={!txType || !amount || parseFloat(amount) <= 0 || createTxMutation.isPending}
+              disabled={!txType || dialogTotal <= 0 || createTxMutation.isPending}
               className="h-12 font-semibold"
               data-testid="button-dialog-save"
             >
