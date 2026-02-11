@@ -214,7 +214,7 @@ function App() {
         {authState === "loading" && (
           <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-background">
             <div className="flex flex-col items-center gap-4">
-              <div className="w-16 h-16">
+              <div className="w-36 h-36">
                 <img src="/logo.png" alt="Çapari Balık" className="w-full h-full object-contain" />
               </div>
               <Skeleton className="h-4 w-32" />
