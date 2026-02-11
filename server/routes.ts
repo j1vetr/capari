@@ -162,7 +162,10 @@ export async function registerRoutes(
         return res.status(500).json({ message: "WhatsApp API anahtarı tanımlı değil" });
       }
 
-      const phone = receiver.replace(/\D/g, "");
+      let phone = receiver.replace(/\D/g, "");
+      if (phone.startsWith("0")) {
+        phone = phone.substring(1);
+      }
       const formattedPhone = phone.startsWith("90") ? phone : `90${phone}`;
 
       const response = await fetch("https://my.wpileti.com/api/send-message", {
