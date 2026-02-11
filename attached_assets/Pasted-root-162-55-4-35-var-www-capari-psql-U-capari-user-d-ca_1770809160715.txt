@@ -1,0 +1,201 @@
+root@162-55-4-35:/var/www/capari# psql -U capari_user -d capari_db -h localhost
+Password for user capari_user:
+DROP TABLE IF EXISTS counterparties;
+
+CREATE TABLE counterparties (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT,
+  notes TEXT,
+  invoiced BOOLEAN NOT NULL DEFAULT false,
+  tax_number TEXT,
+  tax_office TEXT,
+  company_title TEXT,
+  address TEXT,
+  payment_due_day INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+psql: error: connection to server at "localhost" (127.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "capari_user"
+root@162-55-4-35:/var/www/capari# DROP TABLE IF EXISTS counterparties;
+CREATE TABLE transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  counterparty_id UUID NOT NULL REFERENCES counterparties(id),
+  tx_type TEXT NOT NULL,
+  amount NUMERIC(12,2) NOT NULL,
+  description TEXT,
+  tx_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  reversed_of UUID,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_transactions_counterparty ON transactions(counterparty_id);
+CREATE INDEX idx_transactions_tx_date ON transactions(tx_date);
+
+\qDROP: command not found
+root@162-55-4-35:/var/www/capari#
+root@162-55-4-35:/var/www/capari# CREATE TABLE counterparties (
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#   type TEXT NOT NULL,
+-bash: type: TEXT: not found
+-bash: type: NOT: not found
+-bash: type: NULL,: not found
+root@162-55-4-35:/var/www/capari#   name TEXT NOT NULL,
+Command 'name' not found, did you mean:
+  command 'mame' from snap mame (mame0285)
+  command 'namei' from deb util-linux (2.37.2-4ubuntu3.4)
+  command 'nvme' from deb nvme-cli (1.16-3ubuntu0.3)
+  command 'lame' from deb lame (3.100-3build2)
+  command 'named' from deb bind9 (1:9.18.39-0ubuntu0.22.04.2)
+  command 'nama' from deb nama (1.216-1)
+  command 'nam' from deb nam (1.15-5.2)
+  command 'mame' from deb mame (0.242+dfsg.1-1)
+  command 'uname' from deb coreutils (8.32-4.1ubuntu1.2)
+See 'snap info <snapname>' for additional versions.
+root@162-55-4-35:/var/www/capari#   phone TEXT,
+Command 'phone' not found, but can be installed with:
+apt install dnet-progs
+root@162-55-4-35:/var/www/capari#   notes TEXT,
+
+Command 'notes' not found, but can be installed with:
+snap install notes
+root@162-55-4-35:/var/www/capari#   invoiced BOOLEAN NOT NULL DEFAULT false,
+invoiced: command not found
+root@162-55-4-35:/var/www/capari#   tax_number TEXT,
+tax_number: command not found
+root@162-55-4-35:/var/www/capari#   tax_office TEXT,
+tax_office: command not found
+root@162-55-4-35:/var/www/capari#   company_title TEXT,
+company_title: command not found
+root@162-55-4-35:/var/www/capari#   address TEXT,
+Command 'address' not found, did you mean:
+  command 'eaddress' from deb ncbi-entrez-direct (14.6.20210224+dfsg-5ubuntu0.3)
+Try: apt install <deb name>
+root@162-55-4-35:/var/www/capari#   payment_due_day INTEGER,
+payment_due_day: command not found
+root@162-55-4-35:/var/www/capari#   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari# );
+-bash: syntax error near unexpected token `)'
+root@162-55-4-35:/var/www/capari#
+root@162-55-4-35:/var/www/capari# CREATE TABLE transactions (
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#   counterparty_id UUID NOT NULL REFERENCES counterparties(id),
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#   tx_type TEXT NOT NULL,
+tx_type: command not found
+root@162-55-4-35:/var/www/capari#   amount NUMERIC(12,2) NOT NULL,
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#   description TEXT,
+description: command not found
+root@162-55-4-35:/var/www/capari#   tx_date DATE NOT NULL DEFAULT CURRENT_DATE,
+tx_date: command not found
+root@162-55-4-35:/var/www/capari#   reversed_of UUID,
+reversed_of: command not found
+root@162-55-4-35:/var/www/capari#   created_at TIMESTAMP NOT NULL DEFAULT NOW()
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari# );
+-bash: syntax error near unexpected token `)'
+root@162-55-4-35:/var/www/capari#
+root@162-55-4-35:/var/www/capari# CREATE INDEX idx_transactions_counterparty ON transactions(counterparty_id);
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari# CREATE INDEX idx_transactions_tx_date ON transactions(tx_date);
+-bash: syntax error near unexpected token `('
+root@162-55-4-35:/var/www/capari#
+root@162-55-4-35:/var/www/capari# \q
+Command 'q' not found, but can be installed with:
+snap install q                       # version 1.6.3-1, or
+apt  install python3-q-text-as-data  # version 3.1.6-1
+See 'snap info q' for additional versions.
+root@162-55-4-35:/var/www/capari# DROP TABLE IF EXISTS transactions;
+root@162-55-4-35:/var/www/capari# DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS counterparties;
+CREATE TABLE counterparties (
+CREATE TABLE counterparties ( gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT,
+  notes TEXT,OLEAN NOT NULL DEFAULT false,
+  invoiced BOOLEAN NOT NULL DEFAULT false,
+  tax_number TEXT,
+  tax_office TEXT,XT,
+  company_title TEXT,
+  address TEXT,ay INTEGER,
+  payment_due_day INTEGER, NULL DEFAULT NOW(),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE TABLE transactions (
+CREATE TABLE transactions (LT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),erparties(id),
+  counterparty_id UUID NOT NULL REFERENCES counterparties(id),
+  tx_type TEXT NOT NULL,OT NULL,
+  amount NUMERIC(12,2) NOT NULL,
+  description TEXT,NULL DEFAULT CURRENT_DATE,
+  tx_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  reversed_of UUID,AMP NOT NULL DEFAULT NOW()
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_transactions_counterparty ON transactions(counterparty_id);
+CREATE INDEX idx_transactions_counterparty ON transactions(counterparty_id);
+CREATE INDEX idx_transactions_tx_date ON transactions(tx_date);
+\q
+\q
+DROP: command not found
+DROP: command not found
+-bash: syntax error near unexpected token `('
+-bash: syntax error near unexpected token `('
+-bash: type: TEXT: not found
+-bash: type: NOT: not found
+-bash: type: NULL,: not found
+Command 'name' not found, did you mean:
+  command 'mame' from snap mame (mame0285)
+  command 'uname' from deb coreutils (8.32-4.1ubuntu1.2)
+  command 'nvme' from deb nvme-cli (1.16-3ubuntu0.3)
+  command 'nama' from deb nama (1.216-1)
+  command 'mame' from deb mame (0.242+dfsg.1-1)
+  command 'lame' from deb lame (3.100-3build2)
+  command 'named' from deb bind9 (1:9.18.39-0ubuntu0.22.04.2)
+  command 'namei' from deb util-linux (2.37.2-4ubuntu3.4)
+  command 'nam' from deb nam (1.15-5.2)
+See 'snap info <snapname>' for additional versions.
+Command 'phone' not found, but can be installed with:
+apt install dnet-progs
+Command 'notes' not found, but can be installed with:
+snap install notes
+invoiced: command not found
+tax_number: command not found
+tax_office: command not found
+company_title: command not found
+Command 'address' not found, did you mean:
+  command 'eaddress' from deb ncbi-entrez-direct (14.6.20210224+dfsg-5ubuntu0.3)
+Try: apt install <deb name>
+payment_due_day: command not found
+-bash: syntax error near unexpected token `('
+-bash: syntax error near unexpected token `('
+-bash: syntax error near unexpected token `)'
+-bash: syntax error near unexpected token `('
+-bash: syntax error near unexpected token `('
+-bash: syntax error near unexpected token `('
+tx_type: command not found
+-bash: syntax error near unexpected token `('
+description: command not found
+tx_date: command not found
+reversed_of: command not found
+-bash: syntax error near unexpected token `('
+-bash: syntax error near unexpected token `)'
+-bash: syntax error near unexpected token `('
+-bash: syntax error near unexpected token `('
+Command 'q' not found, but can be installed with:
+snap install q                       # version 1.6.3-1, or
+apt  install python3-q-text-as-data  # version 3.1.6-1
+See 'snap info q' for additional versions.
