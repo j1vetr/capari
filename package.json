@@ -8,7 +8,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "db:push": "node -r dotenv/config ./node_modules/.bin/drizzle-kit push"
+    "db:push": "NODE_OPTIONS=\"-r dotenv/config\" drizzle-kit push"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
