@@ -57,3 +57,35 @@ export function txTypeBg(txType: string): string {
 export function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
+
+export type ParsedLineItem = {
+  product: string;
+  quantity: string;
+  unitPrice: string;
+  total: number;
+};
+
+function parseTurkishNumber(s: string): number {
+  const cleaned = s.replace(/\./g, "").replace(",", ".");
+  return parseFloat(cleaned) || 0;
+}
+
+export function parseLineItems(description: string | null | undefined): ParsedLineItem[] | null {
+  if (!description) return null;
+  const regex = /([A-Za-zÀ-ÿçÇğĞıİöÖşŞüÜ\s]+?)\s+([\d.,]+)\s*kg\s*x\s*₺?\s*([\d.,]+)/gi;
+  const items: ParsedLineItem[] = [];
+  let match;
+  while ((match = regex.exec(description)) !== null) {
+    const q = parseTurkishNumber(match[2]);
+    const p = parseTurkishNumber(match[3]);
+    if (q > 0 && p > 0) {
+      items.push({
+        product: match[1].trim(),
+        quantity: q.toString(),
+        unitPrice: p.toString(),
+        total: q * p,
+      });
+    }
+  }
+  return items.length > 0 ? items : null;
+}

@@ -18,7 +18,8 @@ import {
   RotateCcw, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
   Download, Check, AlertCircle
 } from "lucide-react";
-import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg } from "@/lib/formatters";
+import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems } from "@/lib/formatters";
+import { ChevronDown, Fish } from "lucide-react";
 import type { CounterpartyWithBalance, Transaction } from "@shared/schema";
 
 export default function CounterpartyDetail() {
@@ -31,6 +32,7 @@ export default function CounterpartyDetail() {
   const [description, setDescription] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [confirmReverse, setConfirmReverse] = useState<string | null>(null);
+  const [expandedTx, setExpandedTx] = useState<string | null>(null);
 
   const { data: party, isLoading: partyLoading } = useQuery<CounterpartyWithBalance>({
     queryKey: ["/api/counterparties", params.id],
@@ -270,10 +272,14 @@ export default function CounterpartyDetail() {
         {filtered.map((tx) => {
           const isReversed = reversedIds.has(tx.id);
           const isReversal = !!tx.reversedOf;
+          const parsedItems = parseLineItems(tx.description);
+          const hasItems = !!parsedItems && parsedItems.length > 0;
+          const isExpanded = expandedTx === tx.id;
           return (
             <Card
               key={tx.id}
-              className={`${isReversed ? "opacity-50" : ""} ${isReversal ? "border-dashed" : ""}`}
+              className={`${isReversed ? "opacity-50" : ""} ${isReversal ? "border-dashed" : ""} ${hasItems ? "cursor-pointer" : ""}`}
+              onClick={() => hasItems && setExpandedTx(isExpanded ? null : tx.id)}
               data-testid={`card-tx-${tx.id}`}
             >
               <CardContent className="p-3">
@@ -286,6 +292,9 @@ export default function CounterpartyDetail() {
                       <span className={`text-sm font-semibold ${txTypeColor(tx.txType)}`}>
                         {txTypeLabel(tx.txType)}
                       </span>
+                      {hasItems && (
+                        <Badge variant="secondary" className="text-[10px]">{parsedItems!.length} kalem</Badge>
+                      )}
                       {isReversal && (
                         <Badge variant="secondary" className="text-[10px]">Düzeltme</Badge>
                       )}
@@ -294,8 +303,14 @@ export default function CounterpartyDetail() {
                       )}
                     </div>
                     <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-0.5">{formatDate(tx.txDate)}</p>
-                    {tx.description && (
+                    {tx.description && !hasItems && (
                       <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1 leading-relaxed">{tx.description}</p>
+                    )}
+                    {hasItems && !isExpanded && (
+                      <p className="text-xs text-gray-400 dark:text-muted-foreground mt-1 flex items-center gap-1">
+                        <span className="truncate">{parsedItems!.map(i => i.product).join(", ")}</span>
+                        <ChevronDown className="w-3 h-3 flex-shrink-0" />
+                      </p>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -307,7 +322,7 @@ export default function CounterpartyDetail() {
                         variant="ghost"
                         size="sm"
                         className="h-6 text-[10px] gap-1 text-gray-400 dark:text-muted-foreground px-1.5"
-                        onClick={() => setConfirmReverse(tx.id)}
+                        onClick={(e) => { e.stopPropagation(); setConfirmReverse(tx.id); }}
                         disabled={reverseMutation.isPending}
                         data-testid={`button-reverse-${tx.id}`}
                       >
@@ -317,6 +332,35 @@ export default function CounterpartyDetail() {
                     )}
                   </div>
                 </div>
+
+                {hasItems && isExpanded && (
+                  <div className="mt-3 ml-12" data-testid={`detail-items-${tx.id}`}>
+                    <Separator className="mb-3" />
+                    <div className="flex flex-col gap-2">
+                      {parsedItems!.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2.5" data-testid={`line-item-${tx.id}-${idx}`}>
+                          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-gray-50 dark:bg-muted flex-shrink-0">
+                            <Fish className="w-3.5 h-3.5 text-gray-400 dark:text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-800 dark:text-foreground">{item.product}</p>
+                            <p className="text-[11px] text-gray-400 dark:text-muted-foreground">
+                              {item.quantity} kg x {formatCurrency(item.unitPrice)}
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold text-gray-700 dark:text-foreground flex-shrink-0">
+                            {formatCurrency(item.total)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <Separator className="mt-3 mb-2" />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Toplam</span>
+                      <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency(tx.amount)}</span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
