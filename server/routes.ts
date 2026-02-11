@@ -215,6 +215,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/export/backup/json", async (_req, res) => {
+    try {
+      const parties = await storage.getCounterparties();
+      const allTxs = await storage.getAllTransactions();
+      const backup = {
+        exportDate: new Date().toISOString(),
+        counterparties: parties,
+        transactions: allTxs,
+      };
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename=capari-yedek-${new Date().toISOString().split("T")[0]}.json`);
+      res.send(JSON.stringify(backup, null, 2));
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/export/counterparties/csv", async (_req, res) => {
     try {
       const parties = await storage.getCounterparties();

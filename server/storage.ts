@@ -30,6 +30,7 @@ export interface IStorage {
   }>;
 
   getRecentTransactions(limit: number): Promise<TransactionWithCounterparty[]>;
+  getAllTransactions(): Promise<TransactionWithCounterparty[]>;
   deleteCounterparty(id: string): Promise<void>;
   getMonthlyReport(year: number, month: number): Promise<{
     totalSales: string;
@@ -261,6 +262,25 @@ export class DatabaseStorage implements IStorage {
       JOIN counterparties c ON c.id = t.counterparty_id
       ORDER BY t.created_at DESC
       LIMIT ${limit}
+    `);
+    return result.rows.map((r: any) => ({
+      ...r,
+      txType: r.tx_type,
+      counterpartyId: r.counterparty_id,
+      reversedOf: r.reversed_of,
+      txDate: r.tx_date,
+      createdAt: r.created_at,
+      counterpartyName: r.counterparty_name,
+      counterpartyType: r.counterparty_type,
+    })) as TransactionWithCounterparty[];
+  }
+
+  async getAllTransactions(): Promise<TransactionWithCounterparty[]> {
+    const result = await db.execute(sql`
+      SELECT t.*, c.name as counterparty_name, c.type as counterparty_type
+      FROM transactions t
+      JOIN counterparties c ON c.id = t.counterparty_id
+      ORDER BY t.tx_date DESC, t.created_at DESC
     `);
     return result.rows.map((r: any) => ({
       ...r,

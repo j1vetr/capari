@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Calendar, Download, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays
+  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays, Database
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, todayISO } from "@/lib/formatters";
 import type { TransactionWithCounterparty } from "@shared/schema";
@@ -48,11 +48,6 @@ export default function Reports() {
 
   const { data: monthlyReport, isLoading: monthlyLoading } = useQuery<MonthlyReport>({
     queryKey: ["/api/reports/monthly", selectedYear, selectedMonth],
-    queryFn: async () => {
-      const res = await fetch(`/api/reports/monthly/${selectedYear}/${selectedMonth}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load monthly report");
-      return res.json();
-    },
     enabled: tab === "monthly",
   });
 
@@ -198,6 +193,10 @@ export default function Reports() {
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.open("/api/export/transactions/csv", "_blank")} data-testid="button-export-transactions-csv">
             <FileText className="w-4 h-4" />
             İşlem CSV
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.open("/api/export/backup/json", "_blank")} data-testid="button-export-backup">
+            <Database className="w-4 h-4" />
+            Yedek
           </Button>
         </div>
       </div>

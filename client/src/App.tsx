@@ -17,6 +17,7 @@ import QuickTransaction from "@/pages/quick-transaction";
 import Counterparties from "@/pages/counterparties";
 import CounterpartyDetail from "@/pages/counterparty-detail";
 import Reports from "@/pages/reports";
+import BulkPayment from "@/pages/bulk-payment";
 import Login from "@/pages/login";
 
 const NAV_ITEMS = [
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/counterparties" component={Counterparties} />
       <Route path="/counterparties/:id" component={CounterpartyDetail} />
       <Route path="/reports" component={Reports} />
+      <Route path="/bulk" component={BulkPayment} />
       <Route component={NotFound} />
     </Switch>
   );
