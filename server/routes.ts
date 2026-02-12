@@ -693,16 +693,18 @@ export async function registerRoutes(
       if (customerIds.length === 0) {
         return res.json({ ok: true, fixed: 0, message: "Müşteri bulunamadı" });
       }
-      const result = await db.execute(sql`
-        UPDATE transactions 
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        `UPDATE transactions 
         SET tx_type = CASE 
           WHEN tx_type = 'sale' THEN 'collection'
           WHEN tx_type = 'collection' THEN 'sale'
         END
-        WHERE counterparty_id = ANY(${customerIds})
+        WHERE counterparty_id = ANY($1::text[])
         AND tx_type IN ('sale', 'collection')
-        AND reversed_of IS NULL
-      `);
+        AND reversed_of IS NULL`,
+        [customerIds]
+      );
       const fixed = result.rowCount || 0;
       res.json({ ok: true, fixed, message: `${fixed} müşteri işlemi düzeltildi (satış↔tahsilat)` });
     } catch (e: any) {
