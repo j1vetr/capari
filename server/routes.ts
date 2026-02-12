@@ -644,13 +644,14 @@ export async function registerRoutes(
       const pdfBuffer = Buffer.concat(chunks);
 
       const token = randomBytes(32).toString("hex");
-      const pdfFilename = `${party.name}-Ekstre.pdf`;
+      const trMap: Record<string, string> = { "ç": "c", "Ç": "C", "ğ": "g", "Ğ": "G", "ı": "i", "İ": "I", "ö": "o", "Ö": "O", "ş": "s", "Ş": "S", "ü": "u", "Ü": "U" };
+      const safeName = party.name.replace(/[çÇğĞıİöÖşŞüÜ]/g, c => trMap[c] || c).replace(/[^a-zA-Z0-9 _-]/g, "").trim().replace(/\s+/g, "-");
+      const pdfFilename = `${safeName}-Ekstre.pdf`;
       tempPdfStore.set(token, { buffer: pdfBuffer, expires: Date.now() + 3 * 60 * 1000, filename: pdfFilename });
 
       const host = req.headers.host || "localhost:5000";
       const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-      const encodedFilename = encodeURIComponent(pdfFilename);
-      const pdfUrl = `${protocol}://${host}/api/temp-pdf/${token}/${encodedFilename}`;
+      const pdfUrl = `${protocol}://${host}/api/temp-pdf/${token}/${pdfFilename}`;
 
       const response = await fetch("https://my.wpileti.com/api/send-media", {
         method: "POST",
