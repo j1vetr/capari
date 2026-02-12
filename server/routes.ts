@@ -410,6 +410,15 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/products/:id", async (req, res) => {
+    try {
+      await storage.deleteProduct(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
   app.patch("/api/products/:id", async (req, res) => {
     try {
       const updateSchema = z.object({

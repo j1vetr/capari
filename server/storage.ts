@@ -39,6 +39,7 @@ export interface IStorage {
   getProductsWithStock(): Promise<ProductWithStock[]>;
   createProduct(data: InsertProduct): Promise<Product>;
   updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product>;
+  deleteProduct(id: string): Promise<void>;
   findOrCreateProduct(name: string, unit: string): Promise<Product>;
   createTransactionWithItems(data: InsertTransaction, items: { productId: string; quantity: string; unitPrice?: string }[]): Promise<Transaction>;
   getTransactionItems(transactionId: string): Promise<TransactionItemWithProduct[]>;
@@ -457,6 +458,15 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(products).set(data).where(eq(products.id, id)).returning();
     if (!updated) throw new Error("Ürün bulunamadı");
     return updated;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    const refs = await db.select({ id: transactionItems.id }).from(transactionItems).where(eq(transactionItems.productId, id)).limit(1);
+    if (refs.length > 0) {
+      throw new Error("Bu ürüne ait işlem kaydı var, silinemez. Pasif yapabilirsiniz.");
+    }
+    await db.delete(stockAdjustments).where(eq(stockAdjustments.productId, id));
+    await db.delete(products).where(eq(products.id, id));
   }
 
   async createTransactionWithItems(
