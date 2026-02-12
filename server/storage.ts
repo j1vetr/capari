@@ -39,6 +39,7 @@ export interface IStorage {
   getProductsWithStock(): Promise<ProductWithStock[]>;
   createProduct(data: InsertProduct): Promise<Product>;
   updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product>;
+  findOrCreateProduct(name: string, unit: string): Promise<Product>;
   createTransactionWithItems(data: InsertTransaction, items: { productId: string; quantity: string; unitPrice?: string }[]): Promise<Transaction>;
   getTransactionItems(transactionId: string): Promise<TransactionItemWithProduct[]>;
   createStockAdjustment(data: InsertStockAdjustment): Promise<StockAdjustment>;
@@ -394,6 +395,22 @@ export class DatabaseStorage implements IStorage {
 
   async getProducts(): Promise<Product[]> {
     return db.select().from(products).orderBy(products.name);
+  }
+
+  async findOrCreateProduct(name: string, unit: string): Promise<Product> {
+    const normalizedName = name.trim().toLowerCase();
+    const existing = await db.select().from(products)
+      .where(sql`lower(trim(${products.name})) = ${normalizedName}`);
+    if (existing.length > 0) {
+      const match = existing[0];
+      if (!match.isActive) {
+        const [updated] = await db.update(products).set({ isActive: true }).where(eq(products.id, match.id)).returning();
+        return updated;
+      }
+      return match;
+    }
+    const [created] = await db.insert(products).values({ name: name.trim(), unit: unit as any }).returning();
+    return created;
   }
 
   async getProductsWithStock(): Promise<ProductWithStock[]> {

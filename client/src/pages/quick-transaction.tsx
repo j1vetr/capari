@@ -189,7 +189,7 @@ export default function QuickTransaction() {
 
   const computedDescription = isSaleOrPurchase
     ? lineItems
-      .filter((li) => (li.productId || (li.isManual && li.productName)) && lineItemTotal(li) > 0)
+      .filter((li) => (li.productId || li.productName.trim()) && lineItemTotal(li) > 0)
       .map((li) => `${li.productName} ${li.quantity}${unitLabel(li.productUnit)} x ${formatCurrency(li.unitPrice)}`)
       .join(", ") + (kdvAmount > 0 ? ` [KDV %1: ${formatCurrency(kdvAmount)}]` : "")
     : directDescription;
@@ -202,6 +202,13 @@ export default function QuickTransaction() {
       toast({ title: "Gelecek tarihli işlem eklenemez", variant: "destructive" });
       return;
     }
+    if (txType === "purchase") {
+      const validPurchaseItems = lineItems.filter(li => li.productName.trim() && parseFloat(li.quantity) > 0);
+      if (validPurchaseItems.length === 0) {
+        toast({ title: "En az bir ürün adı ve miktar girin", variant: "destructive" });
+        return;
+      }
+    }
     const txPayload: any = {
       counterpartyId: selectedParty!.id,
       txType,
@@ -211,15 +218,27 @@ export default function QuickTransaction() {
     };
 
     if (isSaleOrPurchase) {
-      const validItems = lineItems.filter(li => (li.productId || (li.isManual && li.productName)) && parseFloat(li.quantity) > 0);
+      const validItems = lineItems.filter(li => {
+        if (txType === "purchase") {
+          return li.productName.trim() && parseFloat(li.quantity) > 0;
+        }
+        return li.productId && parseFloat(li.quantity) > 0;
+      });
       if (validItems.length > 0) {
-        txPayload.items = validItems
-          .filter(li => li.productId)
-          .map(li => ({
+        if (txType === "purchase") {
+          txPayload.purchaseItems = validItems.map(li => ({
+            productName: li.productName.trim(),
+            productUnit: li.productUnit,
+            quantity: li.quantity,
+            unitPrice: li.unitPrice || undefined,
+          }));
+        } else {
+          txPayload.items = validItems.map(li => ({
             productId: li.productId,
             quantity: li.quantity,
             unitPrice: li.unitPrice || undefined,
           }));
+        }
       }
     }
 
@@ -428,51 +447,19 @@ export default function QuickTransaction() {
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between gap-2 mb-2">
                             <span className="text-[11px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Kalem {idx + 1}</span>
-                            <div className="flex items-center gap-1">
+                            {lineItems.length > 1 && (
                               <Button
-                                variant={!li.isManual ? "default" : "ghost"}
-                                size="sm"
-                                className="text-[10px] h-6 px-2"
-                                onClick={() => {
-                                  setLineItems(lineItems.map(item =>
-                                    item.id === li.id
-                                      ? { ...item, isManual: false, productId: "", productName: "", productUnit: "kg" }
-                                      : item
-                                  ));
-                                }}
-                                data-testid={`button-mode-select-${li.id}`}
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeLineItem(li.id)}
+                                data-testid={`button-remove-item-${li.id}`}
                               >
-                                Listeden
+                                <Trash2 className="w-3.5 h-3.5 text-gray-400" />
                               </Button>
-                              <Button
-                                variant={li.isManual ? "default" : "ghost"}
-                                size="sm"
-                                className="text-[10px] h-6 px-2"
-                                onClick={() => {
-                                  setLineItems(lineItems.map(item =>
-                                    item.id === li.id
-                                      ? { ...item, isManual: true, productId: "", productName: "", productUnit: "kg" }
-                                      : item
-                                  ));
-                                }}
-                                data-testid={`button-mode-manual-${li.id}`}
-                              >
-                                Manuel
-                              </Button>
-                              {lineItems.length > 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => removeLineItem(li.id)}
-                                  data-testid={`button-remove-item-${li.id}`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-gray-400" />
-                                </Button>
-                              )}
-                            </div>
+                            )}
                           </div>
                           <div className="flex flex-col gap-2">
-                            {li.isManual ? (
+                            {txType === "purchase" ? (
                               <div className="grid grid-cols-3 gap-2">
                                 <div className="col-span-2">
                                   <Input

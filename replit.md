@@ -51,6 +51,8 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - Invoiced firms (faturalı): 1% KDV added separately on sale/purchase transactions
 - Transaction dates cannot be in the future
 - Sale transactions check stock availability before saving
+- Purchase transactions: manual product entry (name+unit+qty+price), auto-creates product if not in list, stock increases automatically
+- Sale transactions: select product from existing list
 
 ## API Endpoints
 - POST /api/auth/login - Login with password

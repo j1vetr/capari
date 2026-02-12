@@ -153,7 +153,7 @@ export async function registerRoutes(
 
   app.post("/api/transactions", async (req, res) => {
     try {
-      const { items, ...txData } = req.body;
+      const { items, purchaseItems, ...txData } = req.body;
       const parsed = insertTransactionSchema.parse(txData);
       const amount = parseFloat(parsed.amount);
       if (isNaN(amount) || amount <= 0) {
@@ -166,18 +166,42 @@ export async function registerRoutes(
         unitPrice: z.string().optional(),
       })).optional();
 
+      const purchaseItemSchema = z.array(z.object({
+        productName: z.string().min(1),
+        productUnit: z.enum(["kg", "kasa", "adet"]),
+        quantity: z.string(),
+        unitPrice: z.string().optional(),
+      })).optional();
+
+      if (parsed.txType === "purchase") {
+        const parsedPurchaseItems = purchaseItemSchema.parse(purchaseItems) || [];
+        if (parsedPurchaseItems.length === 0) {
+          return res.status(400).json({ message: "Alım işlemi için en az bir ürün girmelisiniz" });
+        }
+        const resolvedItems: { productId: string; quantity: string; unitPrice?: string }[] = [];
+        for (const pi of parsedPurchaseItems) {
+          const product = await storage.findOrCreateProduct(pi.productName, pi.productUnit);
+          resolvedItems.push({
+            productId: product.id,
+            quantity: pi.quantity,
+            unitPrice: pi.unitPrice,
+          });
+        }
+        const created = await storage.createTransactionWithItems(parsed, resolvedItems);
+        res.status(201).json(created);
+        return;
+      }
+
       const parsedItems = itemSchema.parse(items) || [];
 
-      if ((parsed.txType === "sale" || parsed.txType === "purchase") && parsedItems.length > 0) {
-        if (parsed.txType === "sale") {
-          const stockData = await storage.getProductsWithStock();
-          for (const item of parsedItems) {
-            const product = stockData.find(p => p.id === item.productId);
-            if (product && parseFloat(product.currentStock) < parseFloat(item.quantity)) {
-              return res.status(400).json({
-                message: `${product.name} için yeterli stok yok. Mevcut: ${product.currentStock} ${product.unit}`
-              });
-            }
+      if (parsed.txType === "sale" && parsedItems.length > 0) {
+        const stockData = await storage.getProductsWithStock();
+        for (const item of parsedItems) {
+          const product = stockData.find(p => p.id === item.productId);
+          if (product && parseFloat(product.currentStock) < parseFloat(item.quantity)) {
+            return res.status(400).json({
+              message: `${product.name} için yeterli stok yok. Mevcut: ${product.currentStock} ${product.unit}`
+            });
           }
         }
         const created = await storage.createTransactionWithItems(parsed, parsedItems);
