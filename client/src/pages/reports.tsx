@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   Calendar, Download, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays, Database, Trash2, AlertTriangle
+  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays, Database, Trash2, AlertTriangle, RefreshCw
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, todayISO } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,8 @@ export default function Reports() {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [resetDone, setResetDone] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [fixingDirections, setFixingDirections] = useState(false);
+  const [fixResult, setFixResult] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: dailyReport, isLoading: dailyLoading } = useQuery<DailyReport>({
@@ -444,6 +446,49 @@ export default function Reports() {
           ) : null}
         </>
       )}
+
+      <Card className="border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/10">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-9 h-9 rounded-md bg-amber-100 dark:bg-amber-950/30 flex-shrink-0">
+              <RefreshCw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Müşteri İşlem Yönlerini Düzelt</p>
+              <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-0.5">
+                Eski mantıkla girilen müşteri işlemlerinin yönünü düzeltir. Satış ve tahsilat yer değiştirir. Bir kez çalıştırın.
+              </p>
+              {fixResult && (
+                <p className="text-xs font-medium text-green-700 dark:text-green-400 mt-1.5">{fixResult}</p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-1.5 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400"
+                disabled={fixingDirections}
+                onClick={async () => {
+                  setFixingDirections(true);
+                  setFixResult(null);
+                  try {
+                    const res = await apiRequest("POST", "/api/admin/fix-customer-directions", { confirm: "DUZELT" });
+                    const data = await res.json();
+                    setFixResult(data.message);
+                    toast({ title: "Düzeltme tamamlandı", description: data.message });
+                  } catch (e: any) {
+                    toast({ title: "Hata", description: e.message, variant: "destructive" });
+                  } finally {
+                    setFixingDirections(false);
+                  }
+                }}
+                data-testid="button-fix-directions"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${fixingDirections ? "animate-spin" : ""}`} />
+                {fixingDirections ? "Düzeltiliyor..." : "Yönleri Düzelt"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {!resetDone && (
         <Card className="border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/10">

@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { insertCounterpartySchema, insertTransactionSchema, insertProductSchema } from "@shared/schema";
 import { z } from "zod";
 import { generateCounterpartyPDF, generateDailyReportPDF, generateAllCounterpartiesPDF } from "./pdf";
@@ -676,6 +678,34 @@ export async function registerRoutes(
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0]?.message || "Gecersiz veri" });
       }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/fix-customer-directions", requireAuth, async (req, res) => {
+    try {
+      const { confirm } = req.body;
+      if (confirm !== "DUZELT") {
+        return res.status(400).json({ message: "Onay kodu gerekli: DUZELT" });
+      }
+      const allParties = await storage.getCounterparties();
+      const customerIds = allParties.filter(p => p.type === "customer").map(p => p.id);
+      if (customerIds.length === 0) {
+        return res.json({ ok: true, fixed: 0, message: "Müşteri bulunamadı" });
+      }
+      const result = await db.execute(sql`
+        UPDATE transactions 
+        SET tx_type = CASE 
+          WHEN tx_type = 'sale' THEN 'collection'
+          WHEN tx_type = 'collection' THEN 'sale'
+        END
+        WHERE counterparty_id = ANY(${customerIds})
+        AND tx_type IN ('sale', 'collection')
+        AND reversed_of IS NULL
+      `);
+      const fixed = result.rowCount || 0;
+      res.json({ ok: true, fixed, message: `${fixed} müşteri işlemi düzeltildi (satış↔tahsilat)` });
+    } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
   });
