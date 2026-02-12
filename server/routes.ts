@@ -419,6 +419,48 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/stock/:productId/movements", async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        `SELECT 
+          ti.quantity, ti.unit_price, 
+          t.tx_type, t.tx_date, t.description, t.reversed_of,
+          c.name as counterparty_name, c.type as counterparty_type
+        FROM transaction_items ti
+        JOIN transactions t ON ti.transaction_id = t.id
+        JOIN counterparties c ON t.counterparty_id = c.id
+        WHERE ti.product_id = $1
+        ORDER BY t.tx_date DESC, t.created_at DESC`,
+        [productId]
+      );
+      const adjustments = await pool.query(
+        `SELECT quantity, notes, created_at FROM stock_adjustments WHERE product_id = $1 ORDER BY created_at DESC`,
+        [productId]
+      );
+      res.json({
+        transactions: result.rows.map(r => ({
+          quantity: r.quantity,
+          unitPrice: r.unit_price,
+          txType: r.tx_type,
+          txDate: r.tx_date,
+          description: r.description,
+          reversedOf: r.reversed_of,
+          counterpartyName: r.counterparty_name,
+          counterpartyType: r.counterparty_type,
+        })),
+        adjustments: adjustments.rows.map(r => ({
+          quantity: r.quantity,
+          notes: r.notes,
+          createdAt: r.created_at,
+        })),
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/products/bulk", async (req, res) => {
     try {
       const schema = z.object({

@@ -25,9 +25,28 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Package, Plus, Search, AlertTriangle, X, PlusCircle, Fish, Trash2, Settings2, Upload, CheckCircle2, AlertCircle
+  Package, Plus, Search, AlertTriangle, X, PlusCircle, Fish, Trash2, Settings2, Upload, CheckCircle2, AlertCircle,
+  ArrowDownToLine, ArrowUpFromLine, ChevronRight, History, Pencil
 } from "lucide-react";
+import { formatCurrency, formatDate, txTypeLabel } from "@/lib/formatters";
 import type { ProductWithStock } from "@shared/schema";
+
+type StockMovement = {
+  quantity: string;
+  unitPrice: string | null;
+  txType: string;
+  txDate: string;
+  description: string | null;
+  reversedOf: string | null;
+  counterpartyName: string;
+  counterpartyType: string;
+};
+
+type StockAdjustment = {
+  quantity: string;
+  notes: string | null;
+  createdAt: string;
+};
 
 export default function Stock() {
   const { toast } = useToast();
@@ -37,6 +56,7 @@ export default function Stock() {
   const [adjustQty, setAdjustQty] = useState("");
   const [adjustNotes, setAdjustNotes] = useState("");
 
+  const [detailProduct, setDetailProduct] = useState<ProductWithStock | null>(null);
   const [showManage, setShowManage] = useState(false);
   const [manageTab, setManageTab] = useState<"list" | "bulk">("list");
   const [manageSearch, setManageSearch] = useState("");
@@ -47,6 +67,16 @@ export default function Stock() {
 
   const { data: stockData, isLoading } = useQuery<ProductWithStock[]>({
     queryKey: ["/api/stock"],
+  });
+
+  const { data: movements, isLoading: movementsLoading, isError: movementsError } = useQuery<{ transactions: StockMovement[]; adjustments: StockAdjustment[] }>({
+    queryKey: ["/api/stock", detailProduct?.id, "movements"],
+    queryFn: async () => {
+      const res = await fetch(`/api/stock/${detailProduct!.id}/movements`);
+      if (!res.ok) throw new Error("Hareketler y\u00fcklenemedi");
+      return res.json();
+    },
+    enabled: !!detailProduct,
   });
 
   const addMutation = useMutation({
@@ -117,7 +147,8 @@ export default function Stock() {
       setAdjustProduct(null);
       setAdjustQty("");
       setAdjustNotes("");
-      toast({ title: "Stok güncellendi" });
+      setDetailProduct(null);
+      toast({ title: "Stok g\u00fcncellendi" });
     },
     onError: (err: Error) => {
       toast({ title: "Hata", description: err.message, variant: "destructive" });
@@ -269,7 +300,12 @@ export default function Stock() {
           const stock = parseFloat(product.currentStock);
           const isLow = stock <= 0;
           return (
-            <Card key={product.id} data-testid={`card-product-${product.id}`}>
+            <Card
+              key={product.id}
+              data-testid={`card-product-${product.id}`}
+              className="cursor-pointer hover-elevate"
+              onClick={() => setDetailProduct(product)}
+            >
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
                   <div className={`flex items-center justify-center w-10 h-10 rounded-md flex-shrink-0 ${
@@ -299,7 +335,8 @@ export default function Stock() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setAdjustProduct(product);
                         setAdjustQty("");
                         setAdjustNotes("");
@@ -308,6 +345,7 @@ export default function Stock() {
                     >
                       <PlusCircle className="w-4 h-4" />
                     </Button>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
                   </div>
                 </div>
               </CardContent>
@@ -631,6 +669,145 @@ export default function Stock() {
                 {adjustMutation.isPending ? "Kaydediliyor..." : "Stoku Güncelle"}
               </Button>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!detailProduct} onOpenChange={(open) => { if (!open) setDetailProduct(null); }}>
+        <DialogContent className="max-h-[85vh] flex flex-col">
+          {detailProduct && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-sky-600" />
+                  {detailProduct.name}
+                </DialogTitle>
+                <DialogDescription>
+                  Stok: {parseFloat(detailProduct.currentStock).toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {unitLabel(detailProduct.unit)}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-1 overflow-y-auto -mx-2 px-2" data-testid="product-movements-list">
+                {movementsLoading && (
+                  <div className="flex flex-col gap-2 py-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-14 w-full" />
+                    ))}
+                  </div>
+                )}
+
+                {movementsError && (
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-400" />
+                    <p className="text-sm text-red-500">Hareketler y{"\u00FC"}klenemedi</p>
+                  </div>
+                )}
+
+                {!movementsLoading && !movementsError && movements && (
+                  <div className="flex flex-col gap-1.5">
+                    {movements.adjustments.length > 0 && (
+                      <>
+                        <p className="text-[10px] font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider mt-2 mb-1">
+                          Manuel Stok Düzeltmeleri
+                        </p>
+                        {movements.adjustments.map((adj, i) => {
+                          const qty = parseFloat(adj.quantity);
+                          return (
+                            <div key={`adj-${i}`} className="flex items-center gap-3 p-2.5 rounded-md bg-muted/40" data-testid={`adjustment-row-${i}`}>
+                              <div className={`flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0 ${
+                                qty > 0 ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-red-50 dark:bg-red-950/30"
+                              }`}>
+                                <Pencil className={`w-4 h-4 ${qty > 0 ? "text-emerald-600" : "text-red-500"}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-gray-700 dark:text-foreground">
+                                  Manuel D{"\u00FC"}zeltme
+                                </p>
+                                {adj.notes && (
+                                  <p className="text-[10px] text-gray-500 dark:text-muted-foreground truncate">{adj.notes}</p>
+                                )}
+                                <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                                  {new Date(adj.createdAt).toLocaleDateString("tr-TR")}
+                                </p>
+                              </div>
+                              <p className={`text-sm font-bold tabular-nums ${qty > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                {qty > 0 ? "+" : ""}{qty.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {unitLabel(detailProduct.unit)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {movements.transactions.length > 0 && (
+                      <>
+                        <p className="text-[10px] font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider mt-3 mb-1">
+                          {"\u0130\u015Flem Hareketleri"}
+                        </p>
+                        {movements.transactions.map((mv, i) => {
+                          const qty = parseFloat(mv.quantity);
+                          const isIncoming = mv.txType === "purchase";
+                          const isReversed = !!mv.reversedOf;
+                          return (
+                            <div key={`tx-${i}`} className={`flex items-center gap-3 p-2.5 rounded-md ${isReversed ? "bg-gray-100/50 dark:bg-gray-800/30 opacity-60" : "bg-muted/40"}`} data-testid={`movement-row-${i}`}>
+                              <div className={`flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0 ${
+                                isIncoming ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-orange-50 dark:bg-orange-950/30"
+                              }`}>
+                                {isIncoming
+                                  ? <ArrowDownToLine className="w-4 h-4 text-emerald-600" />
+                                  : <ArrowUpFromLine className="w-4 h-4 text-orange-600" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-gray-700 dark:text-foreground truncate">
+                                  {mv.counterpartyName}
+                                  {isReversed && <span className="ml-1 text-[10px] text-gray-400">(iptal)</span>}
+                                </p>
+                                <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
+                                  {txTypeLabel(mv.txType)} - {formatDate(mv.txDate)}
+                                </p>
+                                {mv.unitPrice && (
+                                  <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                                    Birim fiyat: {formatCurrency(mv.unitPrice)}
+                                  </p>
+                                )}
+                              </div>
+                              <p className={`text-sm font-bold tabular-nums ${isIncoming ? "text-emerald-600" : "text-orange-600"}`}>
+                                {isIncoming ? "+" : "-"}{qty.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {unitLabel(detailProduct.unit)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {movements.transactions.length === 0 && movements.adjustments.length === 0 && (
+                      <div className="text-center py-8">
+                        <History className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-muted-foreground" />
+                        <p className="text-sm text-gray-500 dark:text-muted-foreground">Hen{"\u00FC"}z hareket yok</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    setDetailProduct(null);
+                    setAdjustProduct(detailProduct);
+                    setAdjustQty("");
+                    setAdjustNotes("");
+                  }}
+                  data-testid="button-adjust-from-detail"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Stok D{"\u00FC"}zelt
+                </Button>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

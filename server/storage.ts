@@ -62,9 +62,9 @@ export class DatabaseStorage implements IStorage {
         COALESCE(
           CASE
             WHEN c.type = 'customer' THEN
-              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'sale' THEN t.amount ELSE 0 END) - SUM(CASE WHEN t.tx_type = 'collection' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
+              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'sale' THEN t.amount WHEN t.tx_type = 'collection' THEN -t.amount WHEN t.tx_type = 'purchase' THEN -t.amount WHEN t.tx_type = 'payment' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
             ELSE
-              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'purchase' THEN t.amount ELSE 0 END) - SUM(CASE WHEN t.tx_type = 'payment' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
+              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'purchase' THEN t.amount WHEN t.tx_type = 'payment' THEN -t.amount WHEN t.tx_type = 'sale' THEN -t.amount WHEN t.tx_type = 'collection' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
           END
         , 0) as balance
       FROM counterparties c
@@ -79,9 +79,9 @@ export class DatabaseStorage implements IStorage {
         COALESCE(
           CASE
             WHEN c.type = 'customer' THEN
-              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'sale' THEN t.amount ELSE 0 END) - SUM(CASE WHEN t.tx_type = 'collection' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
+              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'sale' THEN t.amount WHEN t.tx_type = 'collection' THEN -t.amount WHEN t.tx_type = 'purchase' THEN -t.amount WHEN t.tx_type = 'payment' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
             ELSE
-              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'purchase' THEN t.amount ELSE 0 END) - SUM(CASE WHEN t.tx_type = 'payment' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
+              (SELECT COALESCE(SUM(CASE WHEN t.tx_type = 'purchase' THEN t.amount WHEN t.tx_type = 'payment' THEN -t.amount WHEN t.tx_type = 'sale' THEN -t.amount WHEN t.tx_type = 'collection' THEN t.amount ELSE 0 END), 0) FROM transactions t WHERE t.counterparty_id = c.id)
           END
         , 0) as balance
       FROM counterparties c
@@ -244,9 +244,9 @@ export class DatabaseStorage implements IStorage {
 
     const totalsResult = await db.execute(sql`
       SELECT
-        COALESCE((SELECT SUM(CASE WHEN t.tx_type='sale' THEN t.amount ELSE 0 END) - SUM(CASE WHEN t.tx_type='collection' THEN t.amount ELSE 0 END)
+        COALESCE((SELECT SUM(CASE WHEN t.tx_type='sale' THEN t.amount WHEN t.tx_type='collection' THEN -t.amount WHEN t.tx_type='purchase' THEN -t.amount WHEN t.tx_type='payment' THEN t.amount ELSE 0 END)
           FROM transactions t JOIN counterparties c ON c.id=t.counterparty_id WHERE c.type='customer'), 0) as total_receivables,
-        COALESCE((SELECT SUM(CASE WHEN t.tx_type='purchase' THEN t.amount ELSE 0 END) - SUM(CASE WHEN t.tx_type='payment' THEN t.amount ELSE 0 END)
+        COALESCE((SELECT SUM(CASE WHEN t.tx_type='purchase' THEN t.amount WHEN t.tx_type='payment' THEN -t.amount WHEN t.tx_type='sale' THEN -t.amount WHEN t.tx_type='collection' THEN t.amount ELSE 0 END)
           FROM transactions t JOIN counterparties c ON c.id=t.counterparty_id WHERE c.type='supplier'), 0) as total_payables,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='sale' AND tx_date=${today}), 0) as today_sales,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='collection' AND tx_date=${today}), 0) as today_collections,

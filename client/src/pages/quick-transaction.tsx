@@ -42,16 +42,22 @@ let nextItemId = 1;
 
 const TX_TYPES_CUSTOMER = [
   {
-    value: "sale", label: "Satış", desc: "Müşteriye mal verildi", icon: ShoppingCart,
+    value: "sale", label: "Sat\u0131\u015f", desc: "M\u00fc\u015fteriye mal verildi", icon: ShoppingCart,
     bgClass: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
     iconClass: "text-emerald-600 dark:text-emerald-400",
     activeClass: "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700",
   },
   {
-    value: "collection", label: "Tahsilat", desc: "Müşteriden ödeme alındı", icon: ArrowDownToLine,
+    value: "collection", label: "Tahsilat", desc: "M\u00fc\u015fteriden \u00f6deme al\u0131nd\u0131", icon: ArrowDownToLine,
     bgClass: "bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800",
     iconClass: "text-sky-600 dark:text-sky-400",
     activeClass: "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700",
+  },
+  {
+    value: "purchase", label: "Al\u0131m", desc: "M\u00fc\u015fteriden mal al\u0131nd\u0131", icon: Banknote,
+    bgClass: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
+    iconClass: "text-amber-600 dark:text-amber-400",
+    activeClass: "ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700",
   },
 ];
 

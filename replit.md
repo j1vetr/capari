@@ -52,7 +52,10 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - Transaction dates cannot be in the future
 - Sale transactions check stock availability before saving
 - Purchase transactions: manual product entry (name+unit+qty+price), auto-creates product if not in list, stock increases automatically
+- Purchase allowed for both customers and suppliers (customer purchase reduces their balance)
 - Sale transactions: select product from existing list
+- Stock detail dialog: click product card to view all stock movements (transactions + manual adjustments)
+- Balance formula: customer = sale - collection - purchase + payment; supplier = purchase - payment - sale + collection
 
 ## API Endpoints
 - POST /api/auth/login - Login with password
@@ -73,6 +76,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - GET /api/transactions/:id/items - Get transaction line items
 - GET /api/products - List all products
 - GET /api/stock - Products with computed stock levels
+- GET /api/stock/:productId/movements - Product stock movement history (transactions + adjustments)
 - POST /api/products - Create new product
 - PATCH /api/products/:id - Update product
 - GET /api/reports/daily/:date - Daily report
