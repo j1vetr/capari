@@ -115,7 +115,7 @@ export async function registerRoutes(
         try {
           let txType: "sale" | "collection" | "purchase" | "payment";
           if (party.type === "customer") {
-            txType = item.direction === "aldik" ? "sale" : "collection";
+            txType = item.direction === "verdik" ? "sale" : "collection";
           } else {
             txType = item.direction === "aldik" ? "purchase" : "payment";
           }

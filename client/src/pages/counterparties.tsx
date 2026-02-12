@@ -54,18 +54,18 @@ export default function Counterparties() {
 
   const bulkParties = parties?.filter(p => p.type === bulkType).sort((a, b) => a.name.localeCompare(b.name, "tr")) || [];
 
-  const parseBulkTransactions = (text: string): { amount: number; direction: "aldik" | "verdik"; txDate?: string }[] => {
+  const parseBulkTransactions = (text: string): { amount: number; direction: "aldik" | "verdik"; txDate?: string; description?: string }[] => {
     const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    const results: { amount: number; direction: "aldik" | "verdik"; txDate?: string }[] = [];
+    const results: { amount: number; direction: "aldik" | "verdik"; txDate?: string; description?: string }[] = [];
     for (const line of lines) {
       const parts = line.split(",").map(p => p.trim());
       const amountStr = parts[0] || "";
-      const amount = parseFloat(amountStr);
+      const amount = parseFloat(amountStr.replace(/\./g, "").replace(",", "."));
       if (isNaN(amount) || amount <= 0) continue;
-      const dirStr = (parts[1] || "aldik").toLowerCase();
-      let direction: "aldik" | "verdik" = "aldik";
-      if (dirStr.startsWith("ver") || dirStr === "verdik" || dirStr === "v") {
-        direction = "verdik";
+      const dirStr = (parts[1] || "verdik").toLowerCase();
+      let direction: "aldik" | "verdik" = "verdik";
+      if (dirStr.startsWith("al") || dirStr === "aldik" || dirStr === "a") {
+        direction = "aldik";
       }
       let txDate: string | undefined;
       const dateStr = parts[2] || "";
@@ -78,13 +78,14 @@ export default function Counterparties() {
           txDate = dateStr;
         }
       }
-      results.push({ amount, direction, txDate });
+      const description = parts[3]?.trim() || undefined;
+      results.push({ amount, direction, txDate, description });
     }
     return results;
   };
 
   const bulkMutation = useMutation({
-    mutationFn: async (data: { counterpartyId: string; transactions: { amount: number; direction: "aldik" | "verdik"; txDate?: string }[] }) => {
+    mutationFn: async (data: { counterpartyId: string; transactions: { amount: number; direction: "aldik" | "verdik"; txDate?: string; description?: string }[] }) => {
       const res = await apiRequest("POST", `/api/counterparties/${data.counterpartyId}/bulk-transactions`, { transactions: data.transactions });
       if (!res.ok) {
         const err = await res.json();
@@ -337,26 +338,30 @@ export default function Counterparties() {
                   <CardContent className="p-3">
                     <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1">Format</p>
                     <p className="text-xs text-gray-500 dark:text-muted-foreground leading-relaxed">
-                      Her satıra: <strong>Tutar, aldık/verdik, Tarih</strong>. Stok etkilemez.
+                      Her satıra: <strong>Tutar, aldık/verdik, Tarih, Not</strong>. Stok etkilemez.
                     </p>
                     <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
                       <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
-                        50000,aldık,15.06.2024<br/>25000,verdik,01.12.2024<br/>3200,aldık
+                        {bulkType === "customer" ? (
+                          <>106.050,verdik,30.11.2025,KALAN BAKİYE<br/>11.200,aldık,09.12.2025,TOPLAM FİŞ<br/>5000,verdik,15.12.2025</>
+                        ) : (
+                          <>80.000,aldık,10.03.2025,MAL ALIMI<br/>40.000,verdik,20.08.2025,HAVALE<br/>15.000,aldık,01.12.2025</>
+                        )}
                       </p>
                     </div>
                     <div className="mt-1.5 flex flex-col gap-0.5">
                       <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
                         {bulkType === "customer"
-                          ? <><strong>aldık</strong> = müşteri mal aldı, bize borçlu</>
+                          ? <><strong>verdik</strong> = müşteriye mal verdik, bize borçlu</>
                           : <><strong>aldık</strong> = tedarikçiden mal aldık, biz borçluyuz</>}
                       </p>
                       <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
                         {bulkType === "customer"
-                          ? <><strong>verdik</strong> = müşteri ödeme yaptı / tahsilat</>
+                          ? <><strong>aldık</strong> = müşteriden para aldık / tahsilat</>
                           : <><strong>verdik</strong> = tedarikçiye ödeme yaptık</>}
                       </p>
                       <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
-                        Tarih opsiyonel (GG.AA.YYYY). Yazmazsanız bugünün tarihi kullanılır.
+                        Tarih ve not opsiyonel. Tarih: GG.AA.YYYY. Tutar: 106.050 veya 106050
                       </p>
                     </div>
                   </CardContent>
@@ -367,7 +372,10 @@ export default function Counterparties() {
                     İşlem Listesi
                   </Label>
                   <Textarea
-                    placeholder={"50000,aldık,15.06.2024\n25000,verdik,01.12.2024\n3200,aldık"}
+                    placeholder={bulkType === "customer"
+                      ? "106.050,verdik,30.11.2025,KALAN BAKİYE\n11.200,aldık,09.12.2025,TOPLAM FİŞ\n5000,verdik"
+                      : "80.000,aldık,10.03.2025,MAL ALIMI\n40.000,verdik,20.08.2025,HAVALE\n15.000,aldık"
+                    }
                     value={bulkText}
                     onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
                     className="text-sm font-mono min-h-[140px] resize-none"
