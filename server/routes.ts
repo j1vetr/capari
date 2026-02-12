@@ -103,6 +103,7 @@ export async function registerRoutes(
           phone: z.string().optional(),
           openingBalance: z.number().optional(),
           balanceDirection: z.enum(["aldik", "verdik"]).optional(),
+          txDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         })).min(1).max(500),
       });
       const { counterparties: items } = schema.parse(req.body);
@@ -148,7 +149,7 @@ export async function registerRoutes(
               txType,
               amount: item.openingBalance.toFixed(2),
               description,
-              txDate: new Date().toISOString().split("T")[0],
+              txDate: item.txDate || new Date().toISOString().split("T")[0],
             });
           }
 
