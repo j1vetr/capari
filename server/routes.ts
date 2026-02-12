@@ -94,79 +94,56 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/counterparties/bulk", async (req, res) => {
+  app.post("/api/counterparties/bulk-transactions", async (req, res) => {
     try {
       const schema = z.object({
-        counterparties: z.array(z.object({
+        type: z.enum(["customer", "supplier"]),
+        transactions: z.array(z.object({
           name: z.string().min(1),
-          type: z.enum(["customer", "supplier"]),
-          phone: z.string().optional(),
-          openingBalance: z.number().optional(),
-          balanceDirection: z.enum(["aldik", "verdik"]).optional(),
+          amount: z.number().positive(),
+          direction: z.enum(["aldik", "verdik"]),
           txDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         })).min(1).max(500),
       });
-      const { counterparties: items } = schema.parse(req.body);
-      const results: { name: string; status: "created" | "exists" | "balance_added" | "error"; message?: string }[] = [];
+      const { type, transactions: items } = schema.parse(req.body);
       const existingParties = await storage.getCounterparties();
-      const createdMap = new Map<string, string>();
+      const results: { name: string; status: "added" | "not_found" | "error"; message?: string }[] = [];
 
       for (const item of items) {
         try {
-          const key = `${item.name.toLowerCase().trim()}::${item.type}`;
-          const existing = existingParties.find(
-            p => p.name.toLowerCase().trim() === item.name.toLowerCase().trim() && p.type === item.type
+          const party = existingParties.find(
+            p => p.name.toLowerCase().trim() === item.name.toLowerCase().trim() && p.type === type
           );
-          let counterpartyId: string;
+          if (!party) {
+            results.push({ name: item.name, status: "not_found", message: "Cari bulunamadı" });
+            continue;
+          }
 
-          if (existing) {
-            counterpartyId = existing.id;
-          } else if (createdMap.has(key)) {
-            counterpartyId = createdMap.get(key)!;
+          let txType: "sale" | "collection" | "purchase" | "payment";
+          if (type === "customer") {
+            txType = item.direction === "aldik" ? "sale" : "collection";
           } else {
-            const created = await storage.createCounterparty({
-              name: item.name.trim(),
-              type: item.type,
-              phone: item.phone || null,
-            });
-            counterpartyId = created.id;
-            createdMap.set(key, created.id);
+            txType = item.direction === "aldik" ? "purchase" : "payment";
           }
-
-          if (item.openingBalance && item.openingBalance > 0) {
-            const dir = item.balanceDirection || "aldik";
-            let txType: "sale" | "collection" | "purchase" | "payment";
-            if (item.type === "customer") {
-              txType = dir === "aldik" ? "sale" : "collection";
-            } else {
-              txType = dir === "aldik" ? "purchase" : "payment";
-            }
-            const description = dir === "aldik"
-              ? "Açılış bakiyesi - aldık (eski defter)"
-              : "Açılış bakiyesi - verdik (eski defter)";
-            await storage.createTransaction({
-              counterpartyId,
-              txType,
-              amount: item.openingBalance.toFixed(2),
-              description,
-              txDate: item.txDate || new Date().toISOString().split("T")[0],
-            });
-          }
-
-          if (existing) {
-            results.push({ name: item.name, status: item.openingBalance ? "balance_added" : "exists" });
-          } else {
-            results.push({ name: item.name, status: "created" });
-          }
+          const description = item.direction === "aldik"
+            ? "Eski defter - aldık"
+            : "Eski defter - verdik";
+          await storage.createTransaction({
+            counterpartyId: party.id,
+            txType,
+            amount: item.amount.toFixed(2),
+            description,
+            txDate: item.txDate || new Date().toISOString().split("T")[0],
+          });
+          results.push({ name: item.name, status: "added" });
         } catch (e: any) {
           results.push({ name: item.name, status: "error", message: e.message });
         }
       }
-      const created = results.filter(r => r.status === "created").length;
-      const balanceAdded = results.filter(r => r.status === "balance_added").length;
-      const existed = results.filter(r => r.status === "exists").length;
+      const added = results.filter(r => r.status === "added").length;
+      const notFound = results.filter(r => r.status === "not_found").length;
       const errors = results.filter(r => r.status === "error").length;
-      res.json({ results, summary: { created, balanceAdded, existed, errors, total: items.length } });
+      res.json({ results, summary: { added, notFound, errors, total: items.length } });
     } catch (e: any) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });

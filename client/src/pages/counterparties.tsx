@@ -35,8 +35,8 @@ export default function Counterparties() {
   const [bulkType, setBulkType] = useState<"customer" | "supplier">("customer");
   const [bulkText, setBulkText] = useState("");
   const [bulkResult, setBulkResult] = useState<{
-    summary: { created: number; balanceAdded?: number; existed: number; errors: number; total: number };
-    results: { name: string; status: string }[];
+    summary: { added: number; notFound: number; errors: number; total: number };
+    results: { name: string; status: string; message?: string }[];
   } | null>(null);
 
   const { data: parties, isLoading } = useQuery<CounterpartyWithBalance[]>({
@@ -51,22 +51,23 @@ export default function Counterparties() {
   const totalBalance = filtered.reduce((s, p) => s + parseFloat(p.balance), 0);
   const count = filtered.length;
 
-  const parseBulkText = (text: string): { name: string; type: "customer" | "supplier"; openingBalance?: number; balanceDirection?: "aldik" | "verdik"; txDate?: string }[] => {
+  const parseBulkTransactions = (text: string): { name: string; amount: number; direction: "aldik" | "verdik"; txDate?: string }[] => {
     const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    return lines.map(line => {
+    const results: { name: string; amount: number; direction: "aldik" | "verdik"; txDate?: string }[] = [];
+    for (const line of lines) {
       const parts = line.split(",").map(p => p.trim());
       const name = parts[0] || "";
-      const balanceStr = parts[1] || "";
-      const dirStr = (parts[2] || "").toLowerCase();
-      const dateStr = parts[3] || "";
-      const balance = parseFloat(balanceStr);
-      let direction: "aldik" | "verdik" | undefined;
+      if (!name) continue;
+      const amountStr = parts[1] || "";
+      const amount = parseFloat(amountStr);
+      if (isNaN(amount) || amount <= 0) continue;
+      const dirStr = (parts[2] || "aldik").toLowerCase();
+      let direction: "aldik" | "verdik" = "aldik";
       if (dirStr.startsWith("ver") || dirStr === "verdik" || dirStr === "v") {
         direction = "verdik";
-      } else if (dirStr.startsWith("al") || dirStr === "aldik" || dirStr === "a") {
-        direction = "aldik";
       }
       let txDate: string | undefined;
+      const dateStr = parts[3] || "";
       if (dateStr) {
         const dotMatch = dateStr.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
         const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -76,19 +77,14 @@ export default function Counterparties() {
           txDate = dateStr;
         }
       }
-      return {
-        name,
-        type: bulkType,
-        openingBalance: !isNaN(balance) && balance > 0 ? balance : undefined,
-        balanceDirection: direction,
-        txDate,
-      };
-    }).filter(item => item.name.length > 0);
+      results.push({ name, amount, direction, txDate });
+    }
+    return results;
   };
 
   const bulkMutation = useMutation({
-    mutationFn: async (counterparties: { name: string; type: string; openingBalance?: number; balanceDirection?: string; txDate?: string }[]) => {
-      const res = await apiRequest("POST", "/api/counterparties/bulk", { counterparties });
+    mutationFn: async (data: { type: "customer" | "supplier"; transactions: { name: string; amount: number; direction: "aldik" | "verdik"; txDate?: string }[] }) => {
+      const res = await apiRequest("POST", "/api/counterparties/bulk-transactions", data);
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message);
@@ -100,11 +96,12 @@ export default function Counterparties() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       setBulkResult(data);
       const parts = [];
-      if (data.summary.balanceAdded > 0) parts.push(`${data.summary.balanceAdded} mevcut cariye bakiye eklendi`);
-      if (data.summary.existed > 0) parts.push(`${data.summary.existed} zaten mevcut (atlandı)`);
+      if (data.summary.added > 0) parts.push(`${data.summary.added} işlem eklendi`);
+      if (data.summary.notFound > 0) parts.push(`${data.summary.notFound} cari bulunamadı`);
+      if (data.summary.errors > 0) parts.push(`${data.summary.errors} hata`);
       toast({
-        title: `${data.summary.created} cari eklendi`,
-        description: parts.length > 0 ? parts.join(", ") : undefined,
+        title: parts.join(", "),
+        variant: data.summary.notFound > 0 ? "destructive" : undefined,
       });
     },
     onError: (err: Error) => {
@@ -113,13 +110,13 @@ export default function Counterparties() {
   });
 
   const handleBulkImport = () => {
-    const parsed = parseBulkText(bulkText);
+    const parsed = parseBulkTransactions(bulkText);
     if (parsed.length === 0) {
-      toast({ title: "Eklenecek cari bulunamadı", description: "Her satıra bir cari yazın", variant: "destructive" });
+      toast({ title: "Geçerli işlem bulunamadı", description: "Her satıra: Ad, Tutar, aldık/verdik yazın", variant: "destructive" });
       return;
     }
     setBulkResult(null);
-    bulkMutation.mutate(parsed);
+    bulkMutation.mutate({ type: bulkType, transactions: parsed });
   };
 
   return (
@@ -285,16 +282,16 @@ export default function Counterparties() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Upload className="w-5 h-5 text-sky-600" />
-              Toplu Cari Aktarımı
+              Toplu İşlem Aktarımı
             </DialogTitle>
-            <DialogDescription>Eski defterden carileri toplu olarak ekleyin</DialogDescription>
+            <DialogDescription>Mevcut carilere eski defterden işlemleri toplu ekleyin</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3 flex-1 overflow-hidden">
             <div className="flex gap-1 p-0.5 rounded-md bg-muted/60">
               <button
                 className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${bulkType === "customer" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
-                onClick={() => setBulkType("customer")}
+                onClick={() => { setBulkType("customer"); setBulkResult(null); }}
                 data-testid="bulk-tab-customer"
               >
                 <Store className="w-3.5 h-3.5" />
@@ -302,7 +299,7 @@ export default function Counterparties() {
               </button>
               <button
                 className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${bulkType === "supplier" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
-                onClick={() => setBulkType("supplier")}
+                onClick={() => { setBulkType("supplier"); setBulkResult(null); }}
                 data-testid="bulk-tab-supplier"
               >
                 <Truck className="w-3.5 h-3.5" />
@@ -310,40 +307,42 @@ export default function Counterparties() {
               </button>
             </div>
 
+            <Card className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-800/50">
+              <CardContent className="p-2.5">
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  Carileri önce tek tek "Yeni Ekle" ile açın, sonra buradan işlemlerini toplu aktarın. Cari adı sistemde birebir eşleşmelidir.
+                </p>
+              </CardContent>
+            </Card>
+
             <Card className="bg-sky-50/50 dark:bg-sky-950/10 border-sky-200/50 dark:border-sky-800/50">
               <CardContent className="p-3">
                 <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1">Format</p>
                 <p className="text-xs text-gray-500 dark:text-muted-foreground leading-relaxed">
-                  Her satıra: <strong>Ad, Bakiye, aldık/verdik, Tarih</strong> yazın. Stok etkilemez.
+                  Her satıra: <strong>Cari Adı, Tutar, aldık/verdik, Tarih</strong>. Stok etkilemez.
                 </p>
                 <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
                   <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
                     {bulkType === "customer" ? (
-                      <>Ahmet Balıkçılık,50000,aldık,15.06.2024<br/>Ahmet Balıkçılık,25000,verdik,01.12.2024<br/>Deniz Market,3200,aldık<br/>Sahil Restaurant</>
+                      <>Ahmet Balıkçılık,50000,aldık,15.06.2024<br/>Ahmet Balıkçılık,25000,verdik,01.12.2024<br/>Deniz Market,3200,aldık</>
                     ) : (
                       <>Karadeniz Su Ürünleri,80000,aldık,10.03.2024<br/>Karadeniz Su Ürünleri,40000,verdik,20.08.2024<br/>Marmara Balık,4500,aldık</>
                     )}
                   </p>
                 </div>
-                <p className="text-[10px] text-sky-600 dark:text-sky-400 mt-1">
-                  Aynı cariyi birden fazla satırda yazabilirsiniz (hem aldık hem verdik)
-                </p>
-                <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">
                   Tarih: GG.AA.YYYY veya YYYY-AA-GG. Yazmazsanız bugünün tarihi kullanılır.
                 </p>
                 <div className="mt-1.5 flex flex-col gap-0.5">
                   <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
                     {bulkType === "customer"
-                      ? <><strong>aldık</strong> = müşteriden mal aldı, bize borcu var (alacak)</>
+                      ? <><strong>aldık</strong> = müşteri mal aldı, bize borçlu</>
                       : <><strong>aldık</strong> = tedarikçiden mal aldık, biz borçluyuz</>}
                   </p>
                   <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
                     {bulkType === "customer"
-                      ? <><strong>verdik</strong> = müşteriye ödeme yaptık / fazla tahsilat</>
+                      ? <><strong>verdik</strong> = müşteri ödeme yaptı / tahsilat</>
                       : <><strong>verdik</strong> = tedarikçiye ödeme yaptık</>}
-                  </p>
-                  <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
-                    Belirtmezseniz varsayılan: <strong>aldık</strong>
                   </p>
                 </div>
               </CardContent>
@@ -351,11 +350,11 @@ export default function Counterparties() {
 
             <div>
               <Label className="text-xs font-medium mb-1.5 block text-gray-600 dark:text-muted-foreground">
-                {bulkType === "customer" ? "Müşteri" : "Tedarikçi"} Listesi
+                İşlem Listesi
               </Label>
               <Textarea
                 placeholder={bulkType === "customer"
-                  ? "Ahmet Balıkçılık,50000,aldık,15.06.2024\nAhmet Balıkçılık,25000,verdik,01.12.2024\nDeniz Market,3200,aldık\nSahil Restaurant"
+                  ? "Ahmet Balıkçılık,50000,aldık,15.06.2024\nAhmet Balıkçılık,25000,verdik,01.12.2024\nDeniz Market,3200,aldık"
                   : "Karadeniz Su Ürünleri,80000,aldık,10.03.2024\nKaradeniz Su Ürünleri,40000,verdik,20.08.2024\nMarmara Balık,4500,aldık"
                 }
                 value={bulkText}
@@ -365,28 +364,27 @@ export default function Counterparties() {
               />
               {bulkText.trim() && (
                 <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-1">
-                  {parseBulkText(bulkText).length} cari algılandı
+                  {parseBulkTransactions(bulkText).length} işlem algılandı
                 </p>
               )}
             </div>
 
             {bulkResult && (
-              <Card className="border-green-200/60 dark:border-green-800/40 bg-green-50/40 dark:bg-green-950/10">
+              <Card className={`${bulkResult.summary.notFound > 0 ? "border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/10" : "border-green-200/60 dark:border-green-800/40 bg-green-50/40 dark:bg-green-950/10"}`}>
                 <CardContent className="p-3">
                   <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                    {bulkResult.summary.notFound > 0
+                      ? <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                      : <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />}
                     <div className="text-xs flex-1 min-w-0">
-                      <p className="font-semibold text-green-800 dark:text-green-300">
-                        {bulkResult.summary.created} cari eklendi
-                      </p>
-                      {(bulkResult.summary.balanceAdded || 0) > 0 && (
-                        <p className="text-sky-600 dark:text-sky-400 mt-0.5">
-                          {bulkResult.summary.balanceAdded} mevcut cariye bakiye eklendi
+                      {bulkResult.summary.added > 0 && (
+                        <p className="font-semibold text-green-800 dark:text-green-300">
+                          {bulkResult.summary.added} işlem başarıyla eklendi
                         </p>
                       )}
-                      {bulkResult.summary.existed > 0 && (
-                        <p className="text-gray-500 dark:text-muted-foreground mt-0.5">
-                          {bulkResult.summary.existed} zaten mevcut (atlandı)
+                      {bulkResult.summary.notFound > 0 && (
+                        <p className="text-amber-600 dark:text-amber-400 mt-0.5 font-medium">
+                          {bulkResult.summary.notFound} cari sistemde bulunamadı
                         </p>
                       )}
                       {bulkResult.summary.errors > 0 && (
@@ -396,19 +394,16 @@ export default function Counterparties() {
                       )}
                       <div className="mt-2 flex flex-col gap-0.5 max-h-[120px] overflow-y-auto">
                         {bulkResult.results.map((r, i) => {
-                          const label = r.status === "created" ? "Eklendi"
-                            : r.status === "balance_added" ? "Bakiye eklendi"
-                            : r.status === "exists" ? "Zaten mevcut"
+                          const label = r.status === "added" ? "Eklendi"
+                            : r.status === "not_found" ? "Cari bulunamadı"
                             : "Hata";
-                          const color = r.status === "created" ? "text-green-700 dark:text-green-300"
-                            : r.status === "balance_added" ? "text-sky-600 dark:text-sky-400"
-                            : r.status === "exists" ? "text-amber-600 dark:text-amber-400"
+                          const color = r.status === "added" ? "text-green-700 dark:text-green-300"
+                            : r.status === "not_found" ? "text-amber-600 dark:text-amber-400"
                             : "text-red-600 dark:text-red-400";
                           return (
                             <div key={i} className="flex items-center gap-1.5">
-                              {r.status === "created" && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />}
-                              {r.status === "balance_added" && <CheckCircle2 className="w-3 h-3 text-sky-500 flex-shrink-0" />}
-                              {r.status === "exists" && <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                              {r.status === "added" && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />}
+                              {r.status === "not_found" && <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
                               {r.status === "error" && <X className="w-3 h-3 text-red-500 flex-shrink-0" />}
                               <span className={`text-[11px] truncate ${color}`}>
                                 {r.name} - {label}
@@ -431,7 +426,7 @@ export default function Counterparties() {
                 data-testid="button-submit-bulk-parties"
               >
                 <Upload className="w-4 h-4" />
-                {bulkMutation.isPending ? "Ekleniyor..." : "Toplu Ekle"}
+                {bulkMutation.isPending ? "Aktarılıyor..." : "İşlemleri Aktar"}
               </Button>
               {bulkResult && (
                 <Button
