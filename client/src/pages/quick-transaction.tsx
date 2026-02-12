@@ -33,6 +33,7 @@ type LineItem = {
   productUnit: string;
   quantity: string;
   unitPrice: string;
+  isManual: boolean;
 };
 
 let nextItemId = 1;
@@ -86,7 +87,7 @@ export default function QuickTransaction() {
   const isSaleOrPurchase = txType === "sale" || txType === "purchase";
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" },
+    { id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "", isManual: false },
   ]);
   const [directAmount, setDirectAmount] = useState("");
   const [directDescription, setDirectDescription] = useState("");
@@ -145,7 +146,7 @@ export default function QuickTransaction() {
       toast({ title: `${txTypeLabel(txType)} kaydedildi`, description: `${selectedParty?.name} - ${formatCurrency(computedTotal)}` });
       setSelectedParty(null);
       setTxType("");
-      setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
+      setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "", isManual: false }]);
       setDirectAmount("");
       setDirectDescription("");
       setTxDate(todayISO());
@@ -157,7 +158,7 @@ export default function QuickTransaction() {
   });
 
   const addLineItem = () => {
-    setLineItems([...lineItems, { id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
+    setLineItems([...lineItems, { id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "", isManual: false }]);
   };
 
   const removeLineItem = (id: number) => {
@@ -188,7 +189,7 @@ export default function QuickTransaction() {
 
   const computedDescription = isSaleOrPurchase
     ? lineItems
-      .filter((li) => li.productId && lineItemTotal(li) > 0)
+      .filter((li) => (li.productId || (li.isManual && li.productName)) && lineItemTotal(li) > 0)
       .map((li) => `${li.productName} ${li.quantity}${unitLabel(li.productUnit)} x ${formatCurrency(li.unitPrice)}`)
       .join(", ") + (kdvAmount > 0 ? ` [KDV %1: ${formatCurrency(kdvAmount)}]` : "")
     : directDescription;
@@ -210,13 +211,15 @@ export default function QuickTransaction() {
     };
 
     if (isSaleOrPurchase) {
-      const validItems = lineItems.filter(li => li.productId && parseFloat(li.quantity) > 0);
+      const validItems = lineItems.filter(li => (li.productId || (li.isManual && li.productName)) && parseFloat(li.quantity) > 0);
       if (validItems.length > 0) {
-        txPayload.items = validItems.map(li => ({
-          productId: li.productId,
-          quantity: li.quantity,
-          unitPrice: li.unitPrice || undefined,
-        }));
+        txPayload.items = validItems
+          .filter(li => li.productId)
+          .map(li => ({
+            productId: li.productId,
+            quantity: li.quantity,
+            unitPrice: li.unitPrice || undefined,
+          }));
       }
     }
 
@@ -385,7 +388,7 @@ export default function QuickTransaction() {
                     key={t.value}
                     onClick={() => {
                       setTxType(t.value);
-                      setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
+                      setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "", isManual: false }]);
                       setDirectAmount("");
                       setDirectDescription("");
                     }}
@@ -425,41 +428,99 @@ export default function QuickTransaction() {
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between gap-2 mb-2">
                             <span className="text-[11px] font-bold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Kalem {idx + 1}</span>
-                            {lineItems.length > 1 && (
+                            <div className="flex items-center gap-1">
                               <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => removeLineItem(li.id)}
-                                data-testid={`button-remove-item-${li.id}`}
+                                variant={!li.isManual ? "default" : "ghost"}
+                                size="sm"
+                                className="text-[10px] h-6 px-2"
+                                onClick={() => {
+                                  setLineItems(lineItems.map(item =>
+                                    item.id === li.id
+                                      ? { ...item, isManual: false, productId: "", productName: "", productUnit: "kg" }
+                                      : item
+                                  ));
+                                }}
+                                data-testid={`button-mode-select-${li.id}`}
                               >
-                                <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                                Listeden
                               </Button>
-                            )}
+                              <Button
+                                variant={li.isManual ? "default" : "ghost"}
+                                size="sm"
+                                className="text-[10px] h-6 px-2"
+                                onClick={() => {
+                                  setLineItems(lineItems.map(item =>
+                                    item.id === li.id
+                                      ? { ...item, isManual: true, productId: "", productName: "", productUnit: "kg" }
+                                      : item
+                                  ));
+                                }}
+                                data-testid={`button-mode-manual-${li.id}`}
+                              >
+                                Manuel
+                              </Button>
+                              {lineItems.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeLineItem(li.id)}
+                                  data-testid={`button-remove-item-${li.id}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           <div className="flex flex-col gap-2">
-                            <Select
-                              value={li.productId}
-                              onValueChange={(val) => {
-                                const p = productList?.find(pr => pr.id === val);
-                                setLineItems(lineItems.map(item =>
-                                  item.id === li.id
-                                    ? { ...item, productId: val, productName: p?.name || "", productUnit: p?.unit || "kg" }
-                                    : item
-                                ));
-                              }}
-                            >
-                              <SelectTrigger className="bg-white dark:bg-card text-sm" data-testid={`select-product-${li.id}`}>
-                                <SelectValue placeholder="Ürün seçin..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(productList || []).filter(p => p.isActive).map(p => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    {p.name} ({p.unit})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            {li.isManual ? (
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-2">
+                                  <Input
+                                    placeholder="Ürün adı yazın..."
+                                    value={li.productName}
+                                    onChange={(e) => updateLineItem(li.id, "productName", e.target.value)}
+                                    className="bg-white dark:bg-card text-sm"
+                                    data-testid={`input-manual-product-${li.id}`}
+                                  />
+                                </div>
+                                <Select
+                                  value={li.productUnit}
+                                  onValueChange={(val) => updateLineItem(li.id, "productUnit", val)}
+                                >
+                                  <SelectTrigger className="bg-white dark:bg-card text-sm" data-testid={`select-manual-unit-${li.id}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="kg">kg</SelectItem>
+                                    <SelectItem value="kasa">kasa</SelectItem>
+                                    <SelectItem value="adet">adet</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : (
+                              <Select
+                                value={li.productId}
+                                onValueChange={(val) => {
+                                  const p = productList?.find(pr => pr.id === val);
+                                  setLineItems(lineItems.map(item =>
+                                    item.id === li.id
+                                      ? { ...item, productId: val, productName: p?.name || "", productUnit: p?.unit || "kg" }
+                                      : item
+                                  ));
+                                }}
+                              >
+                                <SelectTrigger className="bg-white dark:bg-card text-sm" data-testid={`select-product-${li.id}`}>
+                                  <SelectValue placeholder="Ürün seçin..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(productList || []).filter(p => p.isActive).map(p => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      {p.name} ({p.unit})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                             <div className="grid grid-cols-2 gap-2">
                               <div className="relative">
                                 <Input
