@@ -23,8 +23,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Package, Plus, Search, AlertTriangle, X, PlusCircle, Fish, Trash2, Settings2
+  Package, Plus, Search, AlertTriangle, X, PlusCircle, Fish, Trash2, Settings2, Upload, CheckCircle2, AlertCircle
 } from "lucide-react";
 import type { ProductWithStock } from "@shared/schema";
 
@@ -37,9 +38,12 @@ export default function Stock() {
   const [adjustNotes, setAdjustNotes] = useState("");
 
   const [showManage, setShowManage] = useState(false);
+  const [manageTab, setManageTab] = useState<"list" | "bulk">("list");
   const [manageSearch, setManageSearch] = useState("");
   const [newFishName, setNewFishName] = useState("");
   const [newFishUnit, setNewFishUnit] = useState<"kg" | "kasa" | "adet">("kg");
+  const [bulkText, setBulkText] = useState("");
+  const [bulkResult, setBulkResult] = useState<{ summary: { created: number; existed: number; errors: number; total: number }; results: { name: string; status: string }[] } | null>(null);
 
   const { data: stockData, isLoading } = useQuery<ProductWithStock[]>({
     queryKey: ["/api/stock"],
@@ -120,6 +124,50 @@ export default function Stock() {
     },
   });
 
+  const bulkMutation = useMutation({
+    mutationFn: async (products: { name: string; unit: string }[]) => {
+      const res = await apiRequest("POST", "/api/products/bulk", { products });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setBulkResult(data);
+      toast({
+        title: `${data.summary.created} balık eklendi`,
+        description: data.summary.existed > 0 ? `${data.summary.existed} zaten mevcut` : undefined,
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const parseBulkText = (text: string): { name: string; unit: string }[] => {
+    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    return lines.map(line => {
+      const parts = line.split(",").map(p => p.trim());
+      const name = parts[0] || "";
+      let unit = (parts[1] || "kg").toLowerCase();
+      if (!["kg", "kasa", "adet"].includes(unit)) unit = "kg";
+      return { name, unit };
+    }).filter(item => item.name.length > 0);
+  };
+
+  const handleBulkImport = () => {
+    const parsed = parseBulkText(bulkText);
+    if (parsed.length === 0) {
+      toast({ title: "Eklenecek balık bulunamadı", description: "Her satıra bir balık yazın", variant: "destructive" });
+      return;
+    }
+    setBulkResult(null);
+    bulkMutation.mutate(parsed);
+  };
+
   const handleAddFish = () => {
     if (!newFishName.trim()) {
       toast({ title: "Balık adı gerekli", variant: "destructive" });
@@ -170,7 +218,7 @@ export default function Stock() {
             Stok Durumu
           </h2>
         </div>
-        <Button size="sm" className="gap-1.5" onClick={() => { setShowManage(true); setManageSearch(""); setNewFishName(""); }} data-testid="button-manage-fish">
+        <Button size="sm" className="gap-1.5" onClick={() => { setShowManage(true); setManageTab("list"); setManageSearch(""); setNewFishName(""); setBulkText(""); setBulkResult(null); }} data-testid="button-manage-fish">
           <Fish className="w-4 h-4" />
           Balık Yönet
         </Button>
@@ -268,147 +316,265 @@ export default function Stock() {
         })}
       </div>
 
-      <Dialog open={showManage} onOpenChange={setShowManage}>
+      <Dialog open={showManage} onOpenChange={(open) => { setShowManage(open); if (!open) { setManageTab("list"); setBulkResult(null); } }}>
         <DialogContent className="max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Fish className="w-5 h-5 text-amber-600" />
               Balık Yönetimi
             </DialogTitle>
-            <DialogDescription>Balıkları ekleyin, silin veya düzenleyin</DialogDescription>
+            <DialogDescription>Balıkları ekleyin, silin veya toplu aktarın</DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-3 flex-1 overflow-hidden">
-            <Card className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-800/50">
-              <CardContent className="p-3">
-                <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2">Yeni Balık Ekle</p>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1 min-w-0">
-                    <Input
-                      placeholder="Balık adı (ör: Granyöz)"
-                      value={newFishName}
-                      onChange={(e) => setNewFishName(e.target.value)}
-                      className="bg-white dark:bg-card text-sm"
-                      data-testid="input-new-fish-name"
-                      onKeyDown={(e) => { if (e.key === "Enter") handleAddFish(); }}
-                    />
-                  </div>
-                  <Select value={newFishUnit} onValueChange={(v) => setNewFishUnit(v as any)}>
-                    <SelectTrigger className="w-24 bg-white dark:bg-card text-sm" data-testid="select-new-fish-unit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="kasa">kasa</SelectItem>
-                      <SelectItem value="adet">adet</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    className="gap-1 flex-shrink-0"
-                    onClick={handleAddFish}
-                    disabled={addMutation.isPending || !newFishName.trim()}
-                    data-testid="button-add-fish"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Ekle
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex gap-1 p-0.5 rounded-md bg-muted/60">
+            <button
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${manageTab === "list" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+              onClick={() => { setManageTab("list"); setBulkResult(null); }}
+              data-testid="tab-list"
+            >
+              Balık Listesi
+            </button>
+            <button
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${manageTab === "bulk" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+              onClick={() => setManageTab("bulk")}
+              data-testid="tab-bulk"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Toplu Aktar
+            </button>
+          </div>
 
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="Balık ara..."
-                value={manageSearch}
-                onChange={(e) => setManageSearch(e.target.value)}
-                className="pl-10 text-sm"
-                data-testid="input-manage-search"
-              />
-              {manageSearch && (
-                <button onClick={() => setManageSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 min-h-0">
-              {managedFiltered.length === 0 && (
-                <div className="text-center py-6">
-                  <Fish className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-muted-foreground" />
-                  <p className="text-sm text-gray-500 dark:text-muted-foreground">
-                    {manageSearch ? `"${manageSearch}" bulunamadı` : "Henüz balık eklenmemiş"}
-                  </p>
-                </div>
-              )}
-              {managedFiltered.map((product) => (
-                <div
-                  key={product.id}
-                  className={`flex items-center gap-3 p-2.5 rounded-md border transition-all ${
-                    product.isActive
-                      ? "border-gray-200 dark:border-muted"
-                      : "border-gray-100 dark:border-muted/50 opacity-50"
-                  }`}
-                  data-testid={`manage-product-${product.id}`}
-                >
-                  <div className="flex items-center justify-center w-8 h-8 rounded-md bg-amber-50 dark:bg-amber-950/30 flex-shrink-0">
-                    <Fish className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${product.isActive ? "text-gray-900 dark:text-foreground" : "text-gray-400 dark:text-muted-foreground line-through"}`}>
-                      {product.name}
-                    </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="secondary" className="text-[9px]">{unitLabel(product.unit)}</Badge>
-                      {!product.isActive && <Badge variant="secondary" className="text-[9px]">Pasif</Badge>}
+          {manageTab === "list" && (
+            <div className="flex flex-col gap-3 flex-1 overflow-hidden">
+              <Card className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-800/50">
+                <CardContent className="p-3">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2">Yeni Balık Ekle</p>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Input
+                        placeholder="Balık adı (ör: Granyöz)"
+                        value={newFishName}
+                        onChange={(e) => setNewFishName(e.target.value)}
+                        className="bg-white dark:bg-card text-sm"
+                        data-testid="input-new-fish-name"
+                        onKeyDown={(e) => { if (e.key === "Enter") handleAddFish(); }}
+                      />
                     </div>
+                    <Select value={newFishUnit} onValueChange={(v) => setNewFishUnit(v as any)}>
+                      <SelectTrigger className="w-24 bg-white dark:bg-card text-sm" data-testid="select-new-fish-unit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kg">kg</SelectItem>
+                        <SelectItem value="kasa">kasa</SelectItem>
+                        <SelectItem value="adet">adet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="gap-1 flex-shrink-0"
+                      onClick={handleAddFish}
+                      disabled={addMutation.isPending || !newFishName.trim()}
+                      data-testid="button-add-fish"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Ekle
+                    </Button>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {!product.isActive && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => toggleActiveMutation.mutate({ id: product.id, isActive: true })}
-                        data-testid={`button-activate-${product.id}`}
-                      >
-                        Aktifleştir
-                      </Button>
-                    )}
-                    {product.isActive && (
+                </CardContent>
+              </Card>
+
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="Balık ara..."
+                  value={manageSearch}
+                  onChange={(e) => setManageSearch(e.target.value)}
+                  className="pl-10 text-sm"
+                  data-testid="input-manage-search"
+                />
+                {manageSearch && (
+                  <button onClick={() => setManageSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 min-h-0">
+                {managedFiltered.length === 0 && (
+                  <div className="text-center py-6">
+                    <Fish className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-muted-foreground" />
+                    <p className="text-sm text-gray-500 dark:text-muted-foreground">
+                      {manageSearch ? `"${manageSearch}" bulunamadı` : "Henüz balık eklenmemiş"}
+                    </p>
+                  </div>
+                )}
+                {managedFiltered.map((product) => (
+                  <div
+                    key={product.id}
+                    className={`flex items-center gap-3 p-2.5 rounded-md border transition-all ${
+                      product.isActive
+                        ? "border-gray-200 dark:border-muted"
+                        : "border-gray-100 dark:border-muted/50 opacity-50"
+                    }`}
+                    data-testid={`manage-product-${product.id}`}
+                  >
+                    <div className="flex items-center justify-center w-8 h-8 rounded-md bg-amber-50 dark:bg-amber-950/30 flex-shrink-0">
+                      <Fish className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium truncate ${product.isActive ? "text-gray-900 dark:text-foreground" : "text-gray-400 dark:text-muted-foreground line-through"}`}>
+                        {product.name}
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className="text-[9px]">{unitLabel(product.unit)}</Badge>
+                        {!product.isActive && <Badge variant="secondary" className="text-[9px]">Pasif</Badge>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {!product.isActive && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => toggleActiveMutation.mutate({ id: product.id, isActive: true })}
+                          data-testid={`button-activate-${product.id}`}
+                        >
+                          Aktifleştir
+                        </Button>
+                      )}
+                      {product.isActive && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleActiveMutation.mutate({ id: product.id, isActive: false })}
+                          data-testid={`button-deactivate-${product.id}`}
+                        >
+                          <X className="w-3.5 h-3.5 text-gray-400" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => toggleActiveMutation.mutate({ id: product.id, isActive: false })}
-                        data-testid={`button-deactivate-${product.id}`}
+                        onClick={() => {
+                          if (confirm(`"${product.name}" silinsin mi? İşlem kaydı varsa silinemez.`)) {
+                            deleteMutation.mutate(product.id);
+                          }
+                        }}
+                        data-testid={`button-delete-${product.id}`}
                       >
-                        <X className="w-3.5 h-3.5 text-gray-400" />
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
                       </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm(`"${product.name}" silinsin mi? İşlem kaydı varsa silinemez.`)) {
-                          deleteMutation.mutate(product.id);
-                        }
-                      }}
-                      data-testid={`button-delete-${product.id}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            <div className="pt-1">
-              <p className="text-[11px] text-gray-400 dark:text-muted-foreground text-center">
-                {allProducts.filter(p => p.isActive).length} aktif, {allProducts.filter(p => !p.isActive).length} pasif balık
-              </p>
+              <div className="pt-1">
+                <p className="text-[11px] text-gray-400 dark:text-muted-foreground text-center">
+                  {allProducts.filter(p => p.isActive).length} aktif, {allProducts.filter(p => !p.isActive).length} pasif balık
+                </p>
+              </div>
             </div>
-          </div>
+          )}
+
+          {manageTab === "bulk" && (
+            <div className="flex flex-col gap-3 flex-1 overflow-hidden">
+              <Card className="bg-sky-50/50 dark:bg-sky-950/10 border-sky-200/50 dark:border-sky-800/50">
+                <CardContent className="p-3">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1">Format</p>
+                  <p className="text-xs text-gray-500 dark:text-muted-foreground leading-relaxed">
+                    Her satıra bir balık yazın. Birim belirtmezseniz varsayılan <strong>kg</strong> olarak eklenir.
+                  </p>
+                  <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
+                    <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
+                      Hamsi,kg<br/>
+                      Levrek,kg<br/>
+                      Somon,kg<br/>
+                      Karides,kasa<br/>
+                      Midye,adet
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div>
+                <Label className="text-xs font-medium mb-1.5 block text-gray-600 dark:text-muted-foreground">
+                  Balık Listesi
+                </Label>
+                <Textarea
+                  placeholder={"Hamsi,kg\nLevrek,kg\nSomon,kg\nKarides,kasa"}
+                  value={bulkText}
+                  onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
+                  className="text-sm font-mono min-h-[140px] resize-none"
+                  data-testid="textarea-bulk-import"
+                />
+                {bulkText.trim() && (
+                  <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-1">
+                    {parseBulkText(bulkText).length} balık algılandı
+                  </p>
+                )}
+              </div>
+
+              {bulkResult && (
+                <Card className="border-green-200/60 dark:border-green-800/40 bg-green-50/40 dark:bg-green-950/10">
+                  <CardContent className="p-3">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                      <div className="text-xs">
+                        <p className="font-semibold text-green-800 dark:text-green-300">
+                          {bulkResult.summary.created} balık eklendi
+                        </p>
+                        {bulkResult.summary.existed > 0 && (
+                          <p className="text-gray-500 dark:text-muted-foreground mt-0.5">
+                            {bulkResult.summary.existed} zaten mevcut (atlandı)
+                          </p>
+                        )}
+                        {bulkResult.summary.errors > 0 && (
+                          <p className="text-red-500 mt-0.5">
+                            {bulkResult.summary.errors} hata oluştu
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-col gap-0.5 max-h-[100px] overflow-y-auto">
+                          {bulkResult.results.map((r, i) => (
+                            <div key={i} className="flex items-center gap-1.5">
+                              {r.status === "created" && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />}
+                              {r.status === "exists" && <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                              {r.status === "error" && <X className="w-3 h-3 text-red-500 flex-shrink-0" />}
+                              <span className={`text-[11px] ${r.status === "created" ? "text-green-700 dark:text-green-300" : r.status === "exists" ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
+                                {r.name} - {r.status === "created" ? "Eklendi" : r.status === "exists" ? "Zaten mevcut" : "Hata"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 gap-1.5"
+                  onClick={handleBulkImport}
+                  disabled={bulkMutation.isPending || !bulkText.trim()}
+                  data-testid="button-bulk-import"
+                >
+                  <Upload className="w-4 h-4" />
+                  {bulkMutation.isPending ? "Ekleniyor..." : "Toplu Ekle"}
+                </Button>
+                {bulkResult && (
+                  <Button
+                    variant="outline"
+                    onClick={() => { setBulkText(""); setBulkResult(null); }}
+                    data-testid="button-bulk-clear"
+                  >
+                    Temizle
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

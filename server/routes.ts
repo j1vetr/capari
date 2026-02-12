@@ -370,6 +370,43 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/products/bulk", async (req, res) => {
+    try {
+      const schema = z.object({
+        products: z.array(z.object({
+          name: z.string().min(1),
+          unit: z.enum(["kg", "kasa", "adet"]),
+        })).min(1).max(200),
+      });
+      const { products: items } = schema.parse(req.body);
+      const results: { name: string; status: "created" | "exists" | "error"; message?: string }[] = [];
+      for (const item of items) {
+        try {
+          const existing = (await storage.getProducts()).find(
+            p => p.name.toLowerCase().trim() === item.name.toLowerCase().trim()
+          );
+          if (existing) {
+            results.push({ name: item.name, status: "exists" });
+          } else {
+            await storage.createProduct({ name: item.name.trim(), unit: item.unit });
+            results.push({ name: item.name, status: "created" });
+          }
+        } catch (e: any) {
+          results.push({ name: item.name, status: "error", message: e.message });
+        }
+      }
+      const created = results.filter(r => r.status === "created").length;
+      const existed = results.filter(r => r.status === "exists").length;
+      const errors = results.filter(r => r.status === "error").length;
+      res.json({ results, summary: { created, existed, errors, total: items.length } });
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/products", async (req, res) => {
     try {
       const parsed = insertProductSchema.parse(req.body);
