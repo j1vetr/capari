@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Search, Plus, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText, CalendarDays
+  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText, CalendarDays, PackagePlus, Fish
 } from "lucide-react";
 import { formatCurrency, txTypeLabel, todayISO } from "@/lib/formatters";
 import type { CounterpartyWithBalance, Product } from "@shared/schema";
@@ -35,6 +35,8 @@ type LineItem = {
   unitPrice: string;
   isManual: boolean;
 };
+
+type ProductWithStock = Product & { currentStock: string };
 
 let nextItemId = 1;
 
@@ -92,6 +94,10 @@ export default function QuickTransaction() {
   const [directAmount, setDirectAmount] = useState("");
   const [directDescription, setDirectDescription] = useState("");
   const [txDate, setTxDate] = useState(todayISO());
+  const [purchaseProductSearch, setPurchaseProductSearch] = useState("");
+  const [showManualProductModal, setShowManualProductModal] = useState(false);
+  const [manualProductName, setManualProductName] = useState("");
+  const [manualProductUnit, setManualProductUnit] = useState("kg");
 
   const { data: parties } = useQuery<CounterpartyWithBalance[]>({
     queryKey: ["/api/counterparties"],
@@ -99,6 +105,10 @@ export default function QuickTransaction() {
 
   const { data: productList } = useQuery<Product[]>({
     queryKey: ["/api/products"],
+  });
+
+  const { data: stockList } = useQuery<ProductWithStock[]>({
+    queryKey: ["/api/stock"],
   });
 
   const filtered = parties?.filter((p) =>
@@ -151,6 +161,7 @@ export default function QuickTransaction() {
       setDirectDescription("");
       setTxDate(todayISO());
       setSearch("");
+      setPurchaseProductSearch("");
     },
     onError: (err: Error) => {
       toast({ title: "İşlem kaydedilemedi", description: err.message, variant: "destructive" });
@@ -161,8 +172,45 @@ export default function QuickTransaction() {
     setLineItems([...lineItems, { id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "", isManual: false }]);
   };
 
+  const addProductToCart = (product: ProductWithStock) => {
+    const exists = lineItems.find(li => li.productId === product.id && !li.isManual);
+    if (exists) return;
+    const newItem: LineItem = {
+      id: nextItemId++,
+      productId: product.id,
+      productName: product.name,
+      productUnit: product.unit,
+      quantity: "",
+      unitPrice: "",
+      isManual: false,
+    };
+    const emptyFirst = lineItems.length === 1 && !lineItems[0].productId && !lineItems[0].productName.trim();
+    setLineItems(emptyFirst ? [newItem] : [...lineItems, newItem]);
+  };
+
+  const addManualProduct = () => {
+    if (!manualProductName.trim()) return;
+    const newItem: LineItem = {
+      id: nextItemId++,
+      productId: "",
+      productName: manualProductName.trim(),
+      productUnit: manualProductUnit,
+      quantity: "",
+      unitPrice: "",
+      isManual: true,
+    };
+    const emptyFirst = lineItems.length === 1 && !lineItems[0].productId && !lineItems[0].productName.trim();
+    setLineItems(emptyFirst ? [newItem] : [...lineItems, newItem]);
+    setManualProductName("");
+    setManualProductUnit("kg");
+    setShowManualProductModal(false);
+  };
+
   const removeLineItem = (id: number) => {
-    if (lineItems.length <= 1) return;
+    if (lineItems.length <= 1) {
+      setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "", isManual: false }]);
+      return;
+    }
     setLineItems(lineItems.filter((li) => li.id !== id));
   };
 
@@ -203,9 +251,9 @@ export default function QuickTransaction() {
       return;
     }
     if (txType === "purchase") {
-      const validPurchaseItems = lineItems.filter(li => li.productName.trim() && parseFloat(li.quantity) > 0);
+      const validPurchaseItems = lineItems.filter(li => (li.productId || li.productName.trim()) && parseFloat(li.quantity) > 0);
       if (validPurchaseItems.length === 0) {
-        toast({ title: "En az bir ürün adı ve miktar girin", variant: "destructive" });
+        toast({ title: "En az bir ürün seçip miktar girin", variant: "destructive" });
         return;
       }
     }
@@ -217,28 +265,22 @@ export default function QuickTransaction() {
       txDate,
     };
 
-    if (isSaleOrPurchase) {
-      const validItems = lineItems.filter(li => {
-        if (txType === "purchase") {
-          return li.productName.trim() && parseFloat(li.quantity) > 0;
-        }
-        return li.productId && parseFloat(li.quantity) > 0;
-      });
+    if (txType === "purchase") {
+      const validItems = lineItems.filter(li => (li.productId || li.productName.trim()) && parseFloat(li.quantity) > 0);
+      txPayload.purchaseItems = validItems.map(li => ({
+        productName: li.productName.trim(),
+        productUnit: li.productUnit,
+        quantity: li.quantity,
+        unitPrice: li.unitPrice || undefined,
+      }));
+    } else if (txType === "sale") {
+      const validItems = lineItems.filter(li => li.productId && parseFloat(li.quantity) > 0);
       if (validItems.length > 0) {
-        if (txType === "purchase") {
-          txPayload.purchaseItems = validItems.map(li => ({
-            productName: li.productName.trim(),
-            productUnit: li.productUnit,
-            quantity: li.quantity,
-            unitPrice: li.unitPrice || undefined,
-          }));
-        } else {
-          txPayload.items = validItems.map(li => ({
-            productId: li.productId,
-            quantity: li.quantity,
-            unitPrice: li.unitPrice || undefined,
-          }));
-        }
+        txPayload.items = validItems.map(li => ({
+          productId: li.productId,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice || undefined,
+        }));
       }
     }
 
@@ -410,6 +452,7 @@ export default function QuickTransaction() {
                       setLineItems([{ id: nextItemId++, productId: "", productName: "", productUnit: "kg", quantity: "", unitPrice: "", isManual: false }]);
                       setDirectAmount("");
                       setDirectDescription("");
+                      setPurchaseProductSearch("");
                     }}
                     className={`flex items-center gap-3 p-3.5 rounded-md border transition-all text-left ${isSelected ? t.activeClass : t.bgClass + " border-transparent"}`}
                     data-testid={`button-tx-type-${t.value}`}
@@ -434,7 +477,156 @@ export default function QuickTransaction() {
             <div className="flex flex-col gap-4">
               <Separator />
 
-              {isSaleOrPurchase ? (
+              {txType === "purchase" ? (
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-foreground mb-3">3. Ürünleri Seç</p>
+
+                  {lineItems.filter(li => li.productId || li.productName.trim()).length > 0 && (
+                    <div className="flex flex-col gap-2 mb-3">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Sepet</span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {lineItems.filter(li => li.productId || li.productName.trim()).length} kalem
+                        </Badge>
+                      </div>
+                      {lineItems.filter(li => li.productId || li.productName.trim()).map((li) => (
+                        <Card key={li.id} data-testid={`card-line-item-${li.id}`}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Fish className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                                <span className="text-sm font-semibold text-gray-900 dark:text-foreground truncate">{li.productName}</span>
+                                <Badge variant="secondary" className="text-[9px]">{unitLabel(li.productUnit)}</Badge>
+                                {li.isManual && <Badge variant="secondary" className="text-[9px]">Yeni</Badge>}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeLineItem(li.id)}
+                                data-testid={`button-remove-item-${li.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                              </Button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  inputMode="decimal"
+                                  step="0.1"
+                                  min="0"
+                                  placeholder={`Miktar (${unitLabel(li.productUnit)})`}
+                                  value={li.quantity}
+                                  onChange={(e) => updateLineItem(li.id, "quantity", e.target.value)}
+                                  className="bg-white dark:bg-card text-sm pr-12"
+                                  data-testid={`input-quantity-${li.id}`}
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-medium">{unitLabel(li.productUnit)}</span>
+                              </div>
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  inputMode="decimal"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="Birim fiyat"
+                                  value={li.unitPrice}
+                                  onChange={(e) => updateLineItem(li.id, "unitPrice", e.target.value)}
+                                  className="bg-white dark:bg-card text-sm pl-6"
+                                  data-testid={`input-unit-price-${li.id}`}
+                                />
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-bold">₺</span>
+                              </div>
+                            </div>
+                            {lineItemTotal(li) > 0 && (
+                              <div className="flex items-center justify-end gap-1 mt-1">
+                                <span className="text-[11px] text-gray-400 dark:text-muted-foreground">Tutar:</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency(lineItemTotal(li))}</span>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                      <Separator className="my-1" />
+                    </div>
+                  )}
+
+                  <div className="mb-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-muted-foreground" />
+                      <Input
+                        placeholder="Ürün ara..."
+                        value={purchaseProductSearch}
+                        onChange={(e) => setPurchaseProductSearch(e.target.value)}
+                        className="pl-10 bg-white dark:bg-card text-sm"
+                        data-testid="input-purchase-product-search"
+                      />
+                      {purchaseProductSearch && (
+                        <button onClick={() => setPurchaseProductSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 max-h-[35vh] overflow-y-auto mb-2">
+                    {(stockList || [])
+                      .filter(p => p.isActive)
+                      .filter(p => !purchaseProductSearch || p.name.toLowerCase().includes(purchaseProductSearch.toLowerCase()))
+                      .map(p => {
+                        const inCart = lineItems.some(li => li.productId === p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => !inCart && addProductToCart(p)}
+                            disabled={inCart}
+                            className={`flex items-center gap-3 p-2.5 rounded-md border text-left transition-all ${
+                              inCart
+                                ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 opacity-70"
+                                : "border-gray-200 dark:border-muted hover-elevate"
+                            }`}
+                            data-testid={`button-add-product-${p.id}`}
+                          >
+                            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-amber-50 dark:bg-amber-950/30 flex-shrink-0">
+                              <Fish className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-foreground truncate">{p.name}</p>
+                              <p className="text-[11px] text-gray-400 dark:text-muted-foreground">
+                                Stok: {parseFloat(p.currentStock).toFixed(1)} {p.unit}
+                              </p>
+                            </div>
+                            <Badge variant="secondary" className="text-[10px] flex-shrink-0">{p.unit}</Badge>
+                            {inCart ? (
+                              <Check className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                            ) : (
+                              <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    {stockList && stockList.filter(p => p.isActive).length === 0 && (
+                      <p className="text-xs text-gray-400 dark:text-muted-foreground text-center py-4">Henüz ürün yok, manuel ekleyin</p>
+                    )}
+                    {purchaseProductSearch && stockList?.filter(p => p.isActive && p.name.toLowerCase().includes(purchaseProductSearch.toLowerCase())).length === 0 && (
+                      <p className="text-xs text-gray-400 dark:text-muted-foreground text-center py-2">"{purchaseProductSearch}" bulunamadı</p>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 border-dashed border-gray-300 dark:border-muted text-gray-500 dark:text-muted-foreground"
+                    onClick={() => {
+                      setManualProductName(purchaseProductSearch);
+                      setShowManualProductModal(true);
+                    }}
+                    data-testid="button-add-manual-product"
+                  >
+                    <PackagePlus className="w-4 h-4" />
+                    Listede Olmayan Yeni Ürün Ekle
+                  </Button>
+                </div>
+              ) : txType === "sale" ? (
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <p className="text-sm font-semibold text-gray-700 dark:text-foreground">3. Ürünleri Gir</p>
@@ -459,55 +651,28 @@ export default function QuickTransaction() {
                             )}
                           </div>
                           <div className="flex flex-col gap-2">
-                            {txType === "purchase" ? (
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="col-span-2">
-                                  <Input
-                                    placeholder="Ürün adı yazın..."
-                                    value={li.productName}
-                                    onChange={(e) => updateLineItem(li.id, "productName", e.target.value)}
-                                    className="bg-white dark:bg-card text-sm"
-                                    data-testid={`input-manual-product-${li.id}`}
-                                  />
-                                </div>
-                                <Select
-                                  value={li.productUnit}
-                                  onValueChange={(val) => updateLineItem(li.id, "productUnit", val)}
-                                >
-                                  <SelectTrigger className="bg-white dark:bg-card text-sm" data-testid={`select-manual-unit-${li.id}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="kg">kg</SelectItem>
-                                    <SelectItem value="kasa">kasa</SelectItem>
-                                    <SelectItem value="adet">adet</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            ) : (
-                              <Select
-                                value={li.productId}
-                                onValueChange={(val) => {
-                                  const p = productList?.find(pr => pr.id === val);
-                                  setLineItems(lineItems.map(item =>
-                                    item.id === li.id
-                                      ? { ...item, productId: val, productName: p?.name || "", productUnit: p?.unit || "kg" }
-                                      : item
-                                  ));
-                                }}
-                              >
-                                <SelectTrigger className="bg-white dark:bg-card text-sm" data-testid={`select-product-${li.id}`}>
-                                  <SelectValue placeholder="Ürün seçin..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {(productList || []).filter(p => p.isActive).map(p => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                      {p.name} ({p.unit})
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
+                            <Select
+                              value={li.productId}
+                              onValueChange={(val) => {
+                                const p = productList?.find(pr => pr.id === val);
+                                setLineItems(lineItems.map(item =>
+                                  item.id === li.id
+                                    ? { ...item, productId: val, productName: p?.name || "", productUnit: p?.unit || "kg" }
+                                    : item
+                                ));
+                              }}
+                            >
+                              <SelectTrigger className="bg-white dark:bg-card text-sm" data-testid={`select-product-${li.id}`}>
+                                <SelectValue placeholder="Ürün seçin..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(productList || []).filter(p => p.isActive).map(p => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.name} ({p.unit})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="relative">
                                 <Input
@@ -815,6 +980,49 @@ export default function QuickTransaction() {
               data-testid="button-save-counterparty"
             >
               {createPartyMutation.isPending ? "Kaydediliyor..." : "Firmayı Kaydet"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showManualProductModal} onOpenChange={setShowManualProductModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Yeni Ürün Ekle</DialogTitle>
+            <DialogDescription>Listede olmayan bir ürünü manuel olarak ekleyin</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <div>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">Ürün Adı</Label>
+              <Input
+                value={manualProductName}
+                onChange={(e) => setManualProductName(e.target.value)}
+                placeholder="Örn: Granyöz, Barbun..."
+                autoFocus
+                data-testid="input-manual-product-name"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1.5 block">Birim</Label>
+              <Select value={manualProductUnit} onValueChange={setManualProductUnit}>
+                <SelectTrigger className="bg-white dark:bg-card" data-testid="select-manual-product-unit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kg">Kilogram (kg)</SelectItem>
+                  <SelectItem value="kasa">Kasa</SelectItem>
+                  <SelectItem value="adet">Adet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={addManualProduct}
+              disabled={!manualProductName.trim()}
+              className="h-12 font-semibold gap-2"
+              data-testid="button-save-manual-product"
+            >
+              <PackagePlus className="w-4 h-4" />
+              Sepete Ekle
             </Button>
           </div>
         </DialogContent>
