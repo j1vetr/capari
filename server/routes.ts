@@ -102,6 +102,7 @@ export async function registerRoutes(
           type: z.enum(["customer", "supplier"]),
           phone: z.string().optional(),
           openingBalance: z.number().optional(),
+          balanceDirection: z.enum(["aldik", "verdik"]).optional(),
         })).min(1).max(500),
       });
       const { counterparties: items } = schema.parse(req.body);
@@ -125,12 +126,21 @@ export async function registerRoutes(
             phone: item.phone || null,
           });
           if (item.openingBalance && item.openingBalance > 0) {
-            const txType = item.type === "customer" ? "sale" : "purchase";
+            const dir = item.balanceDirection || "aldik";
+            let txType: "sale" | "collection" | "purchase" | "payment";
+            if (item.type === "customer") {
+              txType = dir === "aldik" ? "sale" : "collection";
+            } else {
+              txType = dir === "aldik" ? "purchase" : "payment";
+            }
+            const description = dir === "aldik"
+              ? "Açılış bakiyesi - aldık (eski defter)"
+              : "Açılış bakiyesi - verdik (eski defter)";
             await storage.createTransaction({
               counterpartyId: created.id,
               txType,
               amount: item.openingBalance.toFixed(2),
-              description: "Açılış bakiyesi (eski defter)",
+              description,
               txDate: new Date().toISOString().split("T")[0],
             });
           }

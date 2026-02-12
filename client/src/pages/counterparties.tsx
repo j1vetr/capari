@@ -51,23 +51,31 @@ export default function Counterparties() {
   const totalBalance = filtered.reduce((s, p) => s + parseFloat(p.balance), 0);
   const count = filtered.length;
 
-  const parseBulkText = (text: string): { name: string; type: "customer" | "supplier"; openingBalance?: number }[] => {
+  const parseBulkText = (text: string): { name: string; type: "customer" | "supplier"; openingBalance?: number; balanceDirection?: "aldik" | "verdik" }[] => {
     const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
     return lines.map(line => {
       const parts = line.split(",").map(p => p.trim());
       const name = parts[0] || "";
       const balanceStr = parts[1] || "";
+      const dirStr = (parts[2] || "").toLowerCase();
       const balance = parseFloat(balanceStr);
+      let direction: "aldik" | "verdik" | undefined;
+      if (dirStr.startsWith("ver") || dirStr === "verdik" || dirStr === "v") {
+        direction = "verdik";
+      } else if (dirStr.startsWith("al") || dirStr === "aldik" || dirStr === "a") {
+        direction = "aldik";
+      }
       return {
         name,
         type: bulkType,
         openingBalance: !isNaN(balance) && balance > 0 ? balance : undefined,
+        balanceDirection: direction,
       };
     }).filter(item => item.name.length > 0);
   };
 
   const bulkMutation = useMutation({
-    mutationFn: async (counterparties: { name: string; type: string; openingBalance?: number }[]) => {
+    mutationFn: async (counterparties: { name: string; type: string; openingBalance?: number; balanceDirection?: string }[]) => {
       const res = await apiRequest("POST", "/api/counterparties/bulk", { counterparties });
       if (!res.ok) {
         const err = await res.json();
@@ -291,22 +299,32 @@ export default function Counterparties() {
               <CardContent className="p-3">
                 <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1">Format</p>
                 <p className="text-xs text-gray-500 dark:text-muted-foreground leading-relaxed">
-                  Her satıra bir cari yazın. Bakiye yazmak isterseniz virgülle ayırın. Bakiye yazmazsanız 0 olarak eklenir. Stok etkilemez.
+                  Her satıra: <strong>Ad, Bakiye, aldık/verdik</strong> yazın. Stok etkilemez.
                 </p>
                 <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
                   <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
                     {bulkType === "customer" ? (
-                      <>Ahmet Balıkçılık,1500<br/>Deniz Market,3200.50<br/>Sahil Restaurant<br/>Yıldız Büfe,750</>
+                      <>Ahmet Balıkçılık,1500,aldık<br/>Deniz Market,3200.50,aldık<br/>Sahil Restaurant,500,verdik<br/>Yıldız Büfe</>
                     ) : (
-                      <>Karadeniz Su Ürünleri,8000<br/>Marmara Balık,4500<br/>Ege Deniz Ürünleri</>
+                      <>Karadeniz Su Ürünleri,8000,aldık<br/>Marmara Balık,4500,aldık<br/>Ege Deniz Ürünleri,1000,verdik</>
                     )}
                   </p>
                 </div>
-                <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1.5">
-                  {bulkType === "customer"
-                    ? "Bakiye = müşterinin bize borcu (alacak)"
-                    : "Bakiye = bizim tedarikçiye borcumuz"}
-                </p>
+                <div className="mt-1.5 flex flex-col gap-0.5">
+                  <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
+                    {bulkType === "customer"
+                      ? <><strong>aldık</strong> = müşteriden mal aldı, bize borcu var (alacak)</>
+                      : <><strong>aldık</strong> = tedarikçiden mal aldık, biz borçluyuz</>}
+                  </p>
+                  <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
+                    {bulkType === "customer"
+                      ? <><strong>verdik</strong> = müşteriye ödeme yaptık / fazla tahsilat</>
+                      : <><strong>verdik</strong> = tedarikçiye ödeme yaptık</>}
+                  </p>
+                  <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                    Belirtmezseniz varsayılan: <strong>aldık</strong>
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
@@ -316,8 +334,8 @@ export default function Counterparties() {
               </Label>
               <Textarea
                 placeholder={bulkType === "customer"
-                  ? "Ahmet Balıkçılık,1500\nDeniz Market,3200.50\nSahil Restaurant"
-                  : "Karadeniz Su Ürünleri,8000\nMarmara Balık,4500"
+                  ? "Ahmet Balıkçılık,1500,aldık\nDeniz Market,3200.50,aldık\nSahil Restaurant,500,verdik\nYıldız Büfe"
+                  : "Karadeniz Su Ürünleri,8000,aldık\nMarmara Balık,4500,aldık\nEge Deniz,1000,verdik"
                 }
                 value={bulkText}
                 onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
