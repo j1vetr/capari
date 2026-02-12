@@ -94,6 +94,64 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/counterparties/bulk", async (req, res) => {
+    try {
+      const schema = z.object({
+        counterparties: z.array(z.object({
+          name: z.string().min(1),
+          type: z.enum(["customer", "supplier"]),
+          phone: z.string().optional(),
+          openingBalance: z.number().optional(),
+        })).min(1).max(500),
+      });
+      const { counterparties: items } = schema.parse(req.body);
+      const results: { name: string; status: "created" | "exists" | "error"; message?: string }[] = [];
+      const existingParties = await storage.getCounterparties();
+      const createdNames = new Set<string>();
+
+      for (const item of items) {
+        try {
+          const key = `${item.name.toLowerCase().trim()}::${item.type}`;
+          const existing = existingParties.find(
+            p => p.name.toLowerCase().trim() === item.name.toLowerCase().trim() && p.type === item.type
+          );
+          if (existing || createdNames.has(key)) {
+            results.push({ name: item.name, status: "exists" });
+            continue;
+          }
+          const created = await storage.createCounterparty({
+            name: item.name.trim(),
+            type: item.type,
+            phone: item.phone || null,
+          });
+          if (item.openingBalance && item.openingBalance > 0) {
+            const txType = item.type === "customer" ? "sale" : "purchase";
+            await storage.createTransaction({
+              counterpartyId: created.id,
+              txType,
+              amount: item.openingBalance.toFixed(2),
+              description: "Açılış bakiyesi (eski defter)",
+              txDate: new Date().toISOString().split("T")[0],
+            });
+          }
+          createdNames.add(key);
+          results.push({ name: item.name, status: "created" });
+        } catch (e: any) {
+          results.push({ name: item.name, status: "error", message: e.message });
+        }
+      }
+      const created = results.filter(r => r.status === "created").length;
+      const existed = results.filter(r => r.status === "exists").length;
+      const errors = results.filter(r => r.status === "error").length;
+      res.json({ results, summary: { created, existed, errors, total: items.length } });
+    } catch (e: any) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/counterparties", async (req, res) => {
     try {
       const parsed = insertCounterpartySchema.parse(req.body);
