@@ -666,11 +666,21 @@ export default function QuickTransaction() {
                                 <SelectValue placeholder="Ürün seçin..." />
                               </SelectTrigger>
                               <SelectContent>
-                                {(productList || []).filter(p => p.isActive).map(p => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    {p.name} ({p.unit})
-                                  </SelectItem>
-                                ))}
+                                {(stockList || productList || []).filter(p => p.isActive).map(p => {
+                                  const stock = "currentStock" in p ? parseFloat((p as any).currentStock) : null;
+                                  return (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      <span className="flex items-center gap-2 w-full">
+                                        <span>{p.name}</span>
+                                        {stock !== null && (
+                                          <span className={`text-[11px] tabular-nums ${stock <= 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                                            [{stock.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} {p.unit}]
+                                          </span>
+                                        )}
+                                      </span>
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                             <div className="grid grid-cols-2 gap-2">
