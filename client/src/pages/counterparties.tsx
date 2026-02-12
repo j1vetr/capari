@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -33,10 +34,10 @@ export default function Counterparties() {
 
   const [showBulk, setShowBulk] = useState(false);
   const [bulkType, setBulkType] = useState<"customer" | "supplier">("customer");
+  const [bulkPartyId, setBulkPartyId] = useState<string>("");
   const [bulkText, setBulkText] = useState("");
   const [bulkResult, setBulkResult] = useState<{
-    summary: { added: number; notFound: number; errors: number; total: number };
-    results: { name: string; status: string; message?: string }[];
+    summary: { added: number; errors: number; total: number };
   } | null>(null);
 
   const { data: parties, isLoading } = useQuery<CounterpartyWithBalance[]>({
@@ -51,23 +52,23 @@ export default function Counterparties() {
   const totalBalance = filtered.reduce((s, p) => s + parseFloat(p.balance), 0);
   const count = filtered.length;
 
-  const parseBulkTransactions = (text: string): { name: string; amount: number; direction: "aldik" | "verdik"; txDate?: string }[] => {
+  const bulkParties = parties?.filter(p => p.type === bulkType).sort((a, b) => a.name.localeCompare(b.name, "tr")) || [];
+
+  const parseBulkTransactions = (text: string): { amount: number; direction: "aldik" | "verdik"; txDate?: string }[] => {
     const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    const results: { name: string; amount: number; direction: "aldik" | "verdik"; txDate?: string }[] = [];
+    const results: { amount: number; direction: "aldik" | "verdik"; txDate?: string }[] = [];
     for (const line of lines) {
       const parts = line.split(",").map(p => p.trim());
-      const name = parts[0] || "";
-      if (!name) continue;
-      const amountStr = parts[1] || "";
+      const amountStr = parts[0] || "";
       const amount = parseFloat(amountStr);
       if (isNaN(amount) || amount <= 0) continue;
-      const dirStr = (parts[2] || "aldik").toLowerCase();
+      const dirStr = (parts[1] || "aldik").toLowerCase();
       let direction: "aldik" | "verdik" = "aldik";
       if (dirStr.startsWith("ver") || dirStr === "verdik" || dirStr === "v") {
         direction = "verdik";
       }
       let txDate: string | undefined;
-      const dateStr = parts[3] || "";
+      const dateStr = parts[2] || "";
       if (dateStr) {
         const dotMatch = dateStr.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
         const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -77,14 +78,14 @@ export default function Counterparties() {
           txDate = dateStr;
         }
       }
-      results.push({ name, amount, direction, txDate });
+      results.push({ amount, direction, txDate });
     }
     return results;
   };
 
   const bulkMutation = useMutation({
-    mutationFn: async (data: { type: "customer" | "supplier"; transactions: { name: string; amount: number; direction: "aldik" | "verdik"; txDate?: string }[] }) => {
-      const res = await apiRequest("POST", "/api/counterparties/bulk-transactions", data);
+    mutationFn: async (data: { counterpartyId: string; transactions: { amount: number; direction: "aldik" | "verdik"; txDate?: string }[] }) => {
+      const res = await apiRequest("POST", `/api/counterparties/${data.counterpartyId}/bulk-transactions`, { transactions: data.transactions });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message);
@@ -95,13 +96,9 @@ export default function Counterparties() {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       setBulkResult(data);
-      const parts = [];
-      if (data.summary.added > 0) parts.push(`${data.summary.added} işlem eklendi`);
-      if (data.summary.notFound > 0) parts.push(`${data.summary.notFound} cari bulunamadı`);
-      if (data.summary.errors > 0) parts.push(`${data.summary.errors} hata`);
       toast({
-        title: parts.join(", "),
-        variant: data.summary.notFound > 0 ? "destructive" : undefined,
+        title: `${data.summary.added} işlem başarıyla eklendi`,
+        description: data.summary.errors > 0 ? `${data.summary.errors} hata oluştu` : undefined,
       });
     },
     onError: (err: Error) => {
@@ -110,13 +107,17 @@ export default function Counterparties() {
   });
 
   const handleBulkImport = () => {
+    if (!bulkPartyId) {
+      toast({ title: "Cari seçin", description: "Lütfen işlem eklenecek cariyi seçin", variant: "destructive" });
+      return;
+    }
     const parsed = parseBulkTransactions(bulkText);
     if (parsed.length === 0) {
-      toast({ title: "Geçerli işlem bulunamadı", description: "Her satıra: Ad, Tutar, aldık/verdik yazın", variant: "destructive" });
+      toast({ title: "Geçerli işlem bulunamadı", description: "Her satıra: Tutar, aldık/verdik yazın", variant: "destructive" });
       return;
     }
     setBulkResult(null);
-    bulkMutation.mutate({ type: bulkType, transactions: parsed });
+    bulkMutation.mutate({ counterpartyId: bulkPartyId, transactions: parsed });
   };
 
   return (
@@ -131,7 +132,7 @@ export default function Counterparties() {
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => { setShowBulk(true); setBulkType(tab); setBulkText(""); setBulkResult(null); }}
+            onClick={() => { setShowBulk(true); setBulkType(tab); setBulkPartyId(""); setBulkText(""); setBulkResult(null); }}
             data-testid="button-bulk-import-parties"
           >
             <Upload className="w-4 h-4" />
@@ -284,14 +285,14 @@ export default function Counterparties() {
               <Upload className="w-5 h-5 text-sky-600" />
               Toplu İşlem Aktarımı
             </DialogTitle>
-            <DialogDescription>Mevcut carilere eski defterden işlemleri toplu ekleyin</DialogDescription>
+            <DialogDescription>Seçtiğiniz cariye eski defterden işlemleri toplu ekleyin</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3 flex-1 overflow-hidden">
             <div className="flex gap-1 p-0.5 rounded-md bg-muted/60">
               <button
                 className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${bulkType === "customer" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
-                onClick={() => { setBulkType("customer"); setBulkResult(null); }}
+                onClick={() => { setBulkType("customer"); setBulkPartyId(""); setBulkResult(null); }}
                 data-testid="bulk-tab-customer"
               >
                 <Store className="w-3.5 h-3.5" />
@@ -299,7 +300,7 @@ export default function Counterparties() {
               </button>
               <button
                 className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${bulkType === "supplier" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
-                onClick={() => { setBulkType("supplier"); setBulkResult(null); }}
+                onClick={() => { setBulkType("supplier"); setBulkPartyId(""); setBulkResult(null); }}
                 data-testid="bulk-tab-supplier"
               >
                 <Truck className="w-3.5 h-3.5" />
@@ -307,111 +308,94 @@ export default function Counterparties() {
               </button>
             </div>
 
-            <Card className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-800/50">
-              <CardContent className="p-2.5">
-                <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  Carileri önce tek tek "Yeni Ekle" ile açın, sonra buradan işlemlerini toplu aktarın. Cari adı sistemde birebir eşleşmelidir.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-sky-50/50 dark:bg-sky-950/10 border-sky-200/50 dark:border-sky-800/50">
-              <CardContent className="p-3">
-                <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1">Format</p>
-                <p className="text-xs text-gray-500 dark:text-muted-foreground leading-relaxed">
-                  Her satıra: <strong>Cari Adı, Tutar, aldık/verdik, Tarih</strong>. Stok etkilemez.
-                </p>
-                <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
-                  <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
-                    {bulkType === "customer" ? (
-                      <>Ahmet Balıkçılık,50000,aldık,15.06.2024<br/>Ahmet Balıkçılık,25000,verdik,01.12.2024<br/>Deniz Market,3200,aldık</>
-                    ) : (
-                      <>Karadeniz Su Ürünleri,80000,aldık,10.03.2024<br/>Karadeniz Su Ürünleri,40000,verdik,20.08.2024<br/>Marmara Balık,4500,aldık</>
-                    )}
-                  </p>
-                </div>
-                <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">
-                  Tarih: GG.AA.YYYY veya YYYY-AA-GG. Yazmazsanız bugünün tarihi kullanılır.
-                </p>
-                <div className="mt-1.5 flex flex-col gap-0.5">
-                  <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
-                    {bulkType === "customer"
-                      ? <><strong>aldık</strong> = müşteri mal aldı, bize borçlu</>
-                      : <><strong>aldık</strong> = tedarikçiden mal aldık, biz borçluyuz</>}
-                  </p>
-                  <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
-                    {bulkType === "customer"
-                      ? <><strong>verdik</strong> = müşteri ödeme yaptı / tahsilat</>
-                      : <><strong>verdik</strong> = tedarikçiye ödeme yaptık</>}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
             <div>
               <Label className="text-xs font-medium mb-1.5 block text-gray-600 dark:text-muted-foreground">
-                İşlem Listesi
+                {bulkType === "customer" ? "Müşteri" : "Tedarikçi"} Seçin
               </Label>
-              <Textarea
-                placeholder={bulkType === "customer"
-                  ? "Ahmet Balıkçılık,50000,aldık,15.06.2024\nAhmet Balıkçılık,25000,verdik,01.12.2024\nDeniz Market,3200,aldık"
-                  : "Karadeniz Su Ürünleri,80000,aldık,10.03.2024\nKaradeniz Su Ürünleri,40000,verdik,20.08.2024\nMarmara Balık,4500,aldık"
-                }
-                value={bulkText}
-                onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
-                className="text-sm font-mono min-h-[140px] resize-none"
-                data-testid="textarea-bulk-parties"
-              />
-              {bulkText.trim() && (
-                <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-1">
-                  {parseBulkTransactions(bulkText).length} işlem algılandı
-                </p>
-              )}
+              <Select value={bulkPartyId} onValueChange={(v) => { setBulkPartyId(v); setBulkResult(null); }}>
+                <SelectTrigger data-testid="select-bulk-party">
+                  <SelectValue placeholder={`${bulkType === "customer" ? "Müşteri" : "Tedarikçi"} seçin...`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {bulkParties.map(p => (
+                    <SelectItem key={p.id} value={p.id} data-testid={`select-bulk-party-${p.id}`}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                  {bulkParties.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                      Henüz {bulkType === "customer" ? "müşteri" : "tedarikçi"} eklenmemiş
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
+            {bulkPartyId && (
+              <>
+                <Card className="bg-sky-50/50 dark:bg-sky-950/10 border-sky-200/50 dark:border-sky-800/50">
+                  <CardContent className="p-3">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1">Format</p>
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground leading-relaxed">
+                      Her satıra: <strong>Tutar, aldık/verdik, Tarih</strong>. Stok etkilemez.
+                    </p>
+                    <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
+                      <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
+                        50000,aldık,15.06.2024<br/>25000,verdik,01.12.2024<br/>3200,aldık
+                      </p>
+                    </div>
+                    <div className="mt-1.5 flex flex-col gap-0.5">
+                      <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
+                        {bulkType === "customer"
+                          ? <><strong>aldık</strong> = müşteri mal aldı, bize borçlu</>
+                          : <><strong>aldık</strong> = tedarikçiden mal aldık, biz borçluyuz</>}
+                      </p>
+                      <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
+                        {bulkType === "customer"
+                          ? <><strong>verdik</strong> = müşteri ödeme yaptı / tahsilat</>
+                          : <><strong>verdik</strong> = tedarikçiye ödeme yaptık</>}
+                      </p>
+                      <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                        Tarih opsiyonel (GG.AA.YYYY). Yazmazsanız bugünün tarihi kullanılır.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div>
+                  <Label className="text-xs font-medium mb-1.5 block text-gray-600 dark:text-muted-foreground">
+                    İşlem Listesi
+                  </Label>
+                  <Textarea
+                    placeholder={"50000,aldık,15.06.2024\n25000,verdik,01.12.2024\n3200,aldık"}
+                    value={bulkText}
+                    onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
+                    className="text-sm font-mono min-h-[140px] resize-none"
+                    data-testid="textarea-bulk-transactions"
+                  />
+                  {bulkText.trim() && (
+                    <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-1">
+                      {parseBulkTransactions(bulkText).length} işlem algılandı
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
             {bulkResult && (
-              <Card className={`${bulkResult.summary.notFound > 0 ? "border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/10" : "border-green-200/60 dark:border-green-800/40 bg-green-50/40 dark:bg-green-950/10"}`}>
+              <Card className="border-green-200/60 dark:border-green-800/40 bg-green-50/40 dark:bg-green-950/10">
                 <CardContent className="p-3">
                   <div className="flex items-start gap-2">
-                    {bulkResult.summary.notFound > 0
-                      ? <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                      : <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />}
+                    <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
                     <div className="text-xs flex-1 min-w-0">
-                      {bulkResult.summary.added > 0 && (
-                        <p className="font-semibold text-green-800 dark:text-green-300">
-                          {bulkResult.summary.added} işlem başarıyla eklendi
-                        </p>
-                      )}
-                      {bulkResult.summary.notFound > 0 && (
-                        <p className="text-amber-600 dark:text-amber-400 mt-0.5 font-medium">
-                          {bulkResult.summary.notFound} cari sistemde bulunamadı
-                        </p>
-                      )}
+                      <p className="font-semibold text-green-800 dark:text-green-300">
+                        {bulkResult.summary.added} işlem başarıyla eklendi
+                      </p>
                       {bulkResult.summary.errors > 0 && (
                         <p className="text-red-500 mt-0.5">
                           {bulkResult.summary.errors} hata oluştu
                         </p>
                       )}
-                      <div className="mt-2 flex flex-col gap-0.5 max-h-[120px] overflow-y-auto">
-                        {bulkResult.results.map((r, i) => {
-                          const label = r.status === "added" ? "Eklendi"
-                            : r.status === "not_found" ? "Cari bulunamadı"
-                            : "Hata";
-                          const color = r.status === "added" ? "text-green-700 dark:text-green-300"
-                            : r.status === "not_found" ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-600 dark:text-red-400";
-                          return (
-                            <div key={i} className="flex items-center gap-1.5">
-                              {r.status === "added" && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />}
-                              {r.status === "not_found" && <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
-                              {r.status === "error" && <X className="w-3 h-3 text-red-500 flex-shrink-0" />}
-                              <span className={`text-[11px] truncate ${color}`}>
-                                {r.name} - {label}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -422,8 +406,8 @@ export default function Counterparties() {
               <Button
                 className="flex-1 gap-1.5"
                 onClick={handleBulkImport}
-                disabled={bulkMutation.isPending || !bulkText.trim()}
-                data-testid="button-submit-bulk-parties"
+                disabled={bulkMutation.isPending || !bulkText.trim() || !bulkPartyId}
+                data-testid="button-submit-bulk-transactions"
               >
                 <Upload className="w-4 h-4" />
                 {bulkMutation.isPending ? "Aktarılıyor..." : "İşlemleri Aktar"}
@@ -432,7 +416,7 @@ export default function Counterparties() {
                 <Button
                   variant="outline"
                   onClick={() => { setBulkText(""); setBulkResult(null); }}
-                  data-testid="button-clear-bulk-parties"
+                  data-testid="button-clear-bulk"
                 >
                   Temizle
                 </Button>

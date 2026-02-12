@@ -94,56 +94,45 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/counterparties/bulk-transactions", async (req, res) => {
+  app.post("/api/counterparties/:id/bulk-transactions", async (req, res) => {
     try {
+      const party = await storage.getCounterparty(req.params.id);
+      if (!party) return res.status(404).json({ message: "Cari bulunamadı" });
+
       const schema = z.object({
-        type: z.enum(["customer", "supplier"]),
         transactions: z.array(z.object({
-          name: z.string().min(1),
           amount: z.number().positive(),
           direction: z.enum(["aldik", "verdik"]),
           txDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          description: z.string().optional(),
         })).min(1).max(500),
       });
-      const { type, transactions: items } = schema.parse(req.body);
-      const existingParties = await storage.getCounterparties();
-      const results: { name: string; status: "added" | "not_found" | "error"; message?: string }[] = [];
+      const { transactions: items } = schema.parse(req.body);
+      let added = 0;
+      let errors = 0;
 
       for (const item of items) {
         try {
-          const party = existingParties.find(
-            p => p.name.toLowerCase().trim() === item.name.toLowerCase().trim() && p.type === type
-          );
-          if (!party) {
-            results.push({ name: item.name, status: "not_found", message: "Cari bulunamadı" });
-            continue;
-          }
-
           let txType: "sale" | "collection" | "purchase" | "payment";
-          if (type === "customer") {
+          if (party.type === "customer") {
             txType = item.direction === "aldik" ? "sale" : "collection";
           } else {
             txType = item.direction === "aldik" ? "purchase" : "payment";
           }
-          const description = item.direction === "aldik"
-            ? "Eski defter - aldık"
-            : "Eski defter - verdik";
+          const desc = item.description || (item.direction === "aldik" ? "Eski defter - aldık" : "Eski defter - verdik");
           await storage.createTransaction({
             counterpartyId: party.id,
             txType,
             amount: item.amount.toFixed(2),
-            description,
+            description: desc,
             txDate: item.txDate || new Date().toISOString().split("T")[0],
           });
-          results.push({ name: item.name, status: "added" });
+          added++;
         } catch (e: any) {
-          results.push({ name: item.name, status: "error", message: e.message });
+          errors++;
         }
       }
-      const added = results.filter(r => r.status === "added").length;
-      const notFound = results.filter(r => r.status === "not_found").length;
-      const errors = results.filter(r => r.status === "error").length;
-      res.json({ results, summary: { added, notFound, errors, total: items.length } });
+      res.json({ summary: { added, errors, total: items.length } });
     } catch (e: any) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
