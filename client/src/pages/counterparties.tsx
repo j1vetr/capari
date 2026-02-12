@@ -35,7 +35,7 @@ export default function Counterparties() {
   const [bulkType, setBulkType] = useState<"customer" | "supplier">("customer");
   const [bulkText, setBulkText] = useState("");
   const [bulkResult, setBulkResult] = useState<{
-    summary: { created: number; existed: number; errors: number; total: number };
+    summary: { created: number; balanceAdded?: number; existed: number; errors: number; total: number };
     results: { name: string; status: string }[];
   } | null>(null);
 
@@ -87,9 +87,12 @@ export default function Counterparties() {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       setBulkResult(data);
+      const parts = [];
+      if (data.summary.balanceAdded > 0) parts.push(`${data.summary.balanceAdded} mevcut cariye bakiye eklendi`);
+      if (data.summary.existed > 0) parts.push(`${data.summary.existed} zaten mevcut (atlandı)`);
       toast({
         title: `${data.summary.created} cari eklendi`,
-        description: data.summary.existed > 0 ? `${data.summary.existed} zaten mevcut` : undefined,
+        description: parts.length > 0 ? parts.join(", ") : undefined,
       });
     },
     onError: (err: Error) => {
@@ -304,12 +307,15 @@ export default function Counterparties() {
                 <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
                   <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
                     {bulkType === "customer" ? (
-                      <>Ahmet Balıkçılık,1500,aldık<br/>Deniz Market,3200.50,aldık<br/>Sahil Restaurant,500,verdik<br/>Yıldız Büfe</>
+                      <>Ahmet Balıkçılık,50000,aldık<br/>Ahmet Balıkçılık,25000,verdik<br/>Deniz Market,3200,aldık<br/>Sahil Restaurant</>
                     ) : (
-                      <>Karadeniz Su Ürünleri,8000,aldık<br/>Marmara Balık,4500,aldık<br/>Ege Deniz Ürünleri,1000,verdik</>
+                      <>Karadeniz Su Ürünleri,80000,aldık<br/>Karadeniz Su Ürünleri,40000,verdik<br/>Marmara Balık,4500,aldık</>
                     )}
                   </p>
                 </div>
+                <p className="text-[10px] text-sky-600 dark:text-sky-400 mt-1">
+                  Aynı cariyi birden fazla satırda yazabilirsiniz (hem aldık hem verdik)
+                </p>
                 <div className="mt-1.5 flex flex-col gap-0.5">
                   <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
                     {bulkType === "customer"
@@ -334,8 +340,8 @@ export default function Counterparties() {
               </Label>
               <Textarea
                 placeholder={bulkType === "customer"
-                  ? "Ahmet Balıkçılık,1500,aldık\nDeniz Market,3200.50,aldık\nSahil Restaurant,500,verdik\nYıldız Büfe"
-                  : "Karadeniz Su Ürünleri,8000,aldık\nMarmara Balık,4500,aldık\nEge Deniz,1000,verdik"
+                  ? "Ahmet Balıkçılık,50000,aldık\nAhmet Balıkçılık,25000,verdik\nDeniz Market,3200,aldık\nSahil Restaurant"
+                  : "Karadeniz Su Ürünleri,80000,aldık\nKaradeniz Su Ürünleri,40000,verdik\nMarmara Balık,4500,aldık"
                 }
                 value={bulkText}
                 onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
@@ -358,6 +364,11 @@ export default function Counterparties() {
                       <p className="font-semibold text-green-800 dark:text-green-300">
                         {bulkResult.summary.created} cari eklendi
                       </p>
+                      {(bulkResult.summary.balanceAdded || 0) > 0 && (
+                        <p className="text-sky-600 dark:text-sky-400 mt-0.5">
+                          {bulkResult.summary.balanceAdded} mevcut cariye bakiye eklendi
+                        </p>
+                      )}
                       {bulkResult.summary.existed > 0 && (
                         <p className="text-gray-500 dark:text-muted-foreground mt-0.5">
                           {bulkResult.summary.existed} zaten mevcut (atlandı)
@@ -369,16 +380,27 @@ export default function Counterparties() {
                         </p>
                       )}
                       <div className="mt-2 flex flex-col gap-0.5 max-h-[120px] overflow-y-auto">
-                        {bulkResult.results.map((r, i) => (
-                          <div key={i} className="flex items-center gap-1.5">
-                            {r.status === "created" && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />}
-                            {r.status === "exists" && <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
-                            {r.status === "error" && <X className="w-3 h-3 text-red-500 flex-shrink-0" />}
-                            <span className={`text-[11px] truncate ${r.status === "created" ? "text-green-700 dark:text-green-300" : r.status === "exists" ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
-                              {r.name} - {r.status === "created" ? "Eklendi" : r.status === "exists" ? "Zaten mevcut" : "Hata"}
-                            </span>
-                          </div>
-                        ))}
+                        {bulkResult.results.map((r, i) => {
+                          const label = r.status === "created" ? "Eklendi"
+                            : r.status === "balance_added" ? "Bakiye eklendi"
+                            : r.status === "exists" ? "Zaten mevcut"
+                            : "Hata";
+                          const color = r.status === "created" ? "text-green-700 dark:text-green-300"
+                            : r.status === "balance_added" ? "text-sky-600 dark:text-sky-400"
+                            : r.status === "exists" ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400";
+                          return (
+                            <div key={i} className="flex items-center gap-1.5">
+                              {r.status === "created" && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />}
+                              {r.status === "balance_added" && <CheckCircle2 className="w-3 h-3 text-sky-500 flex-shrink-0" />}
+                              {r.status === "exists" && <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                              {r.status === "error" && <X className="w-3 h-3 text-red-500 flex-shrink-0" />}
+                              <span className={`text-[11px] truncate ${color}`}>
+                                {r.name} - {label}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

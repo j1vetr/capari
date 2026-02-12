@@ -106,9 +106,9 @@ export async function registerRoutes(
         })).min(1).max(500),
       });
       const { counterparties: items } = schema.parse(req.body);
-      const results: { name: string; status: "created" | "exists" | "error"; message?: string }[] = [];
+      const results: { name: string; status: "created" | "exists" | "balance_added" | "error"; message?: string }[] = [];
       const existingParties = await storage.getCounterparties();
-      const createdNames = new Set<string>();
+      const createdMap = new Map<string, string>();
 
       for (const item of items) {
         try {
@@ -116,15 +116,22 @@ export async function registerRoutes(
           const existing = existingParties.find(
             p => p.name.toLowerCase().trim() === item.name.toLowerCase().trim() && p.type === item.type
           );
-          if (existing || createdNames.has(key)) {
-            results.push({ name: item.name, status: "exists" });
-            continue;
+          let counterpartyId: string;
+
+          if (existing) {
+            counterpartyId = existing.id;
+          } else if (createdMap.has(key)) {
+            counterpartyId = createdMap.get(key)!;
+          } else {
+            const created = await storage.createCounterparty({
+              name: item.name.trim(),
+              type: item.type,
+              phone: item.phone || null,
+            });
+            counterpartyId = created.id;
+            createdMap.set(key, created.id);
           }
-          const created = await storage.createCounterparty({
-            name: item.name.trim(),
-            type: item.type,
-            phone: item.phone || null,
-          });
+
           if (item.openingBalance && item.openingBalance > 0) {
             const dir = item.balanceDirection || "aldik";
             let txType: "sale" | "collection" | "purchase" | "payment";
@@ -137,23 +144,28 @@ export async function registerRoutes(
               ? "Açılış bakiyesi - aldık (eski defter)"
               : "Açılış bakiyesi - verdik (eski defter)";
             await storage.createTransaction({
-              counterpartyId: created.id,
+              counterpartyId,
               txType,
               amount: item.openingBalance.toFixed(2),
               description,
               txDate: new Date().toISOString().split("T")[0],
             });
           }
-          createdNames.add(key);
-          results.push({ name: item.name, status: "created" });
+
+          if (existing) {
+            results.push({ name: item.name, status: item.openingBalance ? "balance_added" : "exists" });
+          } else {
+            results.push({ name: item.name, status: "created" });
+          }
         } catch (e: any) {
           results.push({ name: item.name, status: "error", message: e.message });
         }
       }
       const created = results.filter(r => r.status === "created").length;
+      const balanceAdded = results.filter(r => r.status === "balance_added").length;
       const existed = results.filter(r => r.status === "exists").length;
       const errors = results.filter(r => r.status === "error").length;
-      res.json({ results, summary: { created, existed, errors, total: items.length } });
+      res.json({ results, summary: { created, balanceAdded, existed, errors, total: items.length } });
     } catch (e: any) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0]?.message || "Geçersiz veri" });
