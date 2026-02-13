@@ -96,6 +96,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - GET /api/counterparties/:id/checks - List checks/notes for counterparty
 - POST /api/checks - Create check/note record
 - PATCH /api/checks/:id/status - Update check status (paid/bounced)
+- DELETE /api/checks/:id - Delete check/note and its linked transactions
 - GET /api/checks/upcoming - Upcoming/overdue checks (days query param)
 - POST /api/admin/reset - Reset all data (requires confirm: "SIFIRLA")
 

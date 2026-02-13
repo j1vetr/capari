@@ -824,6 +824,15 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/checks/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteCheckNote(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/checks/upcoming", requireAuth, async (req, res) => {
     try {
       const days = req.query.days ? parseInt(req.query.days as string) : 7;

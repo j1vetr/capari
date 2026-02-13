@@ -52,6 +52,7 @@ export interface IStorage {
   createCheckNoteWithTransaction(data: InsertCheckNote, transactionId: string): Promise<CheckNote>;
   updateCheckStatus(id: string, status: "paid" | "bounced"): Promise<CheckNote>;
   bounceCheckNote(id: string): Promise<CheckNote>;
+  deleteCheckNote(id: string): Promise<void>;
   getUpcomingChecks(daysBefore?: number): Promise<CheckNoteWithCounterparty[]>;
 
   resetAllData(): Promise<void>;
@@ -617,6 +618,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(checksNotes.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteCheckNote(id: string): Promise<void> {
+    const [check] = await db.select().from(checksNotes).where(eq(checksNotes.id, id));
+    if (!check) throw new Error("Çek/senet bulunamadı");
+
+    if (check.reversalTransactionId) {
+      await db.delete(transactions).where(eq(transactions.id, check.reversalTransactionId));
+    }
+    if (check.transactionId) {
+      await db.delete(transactions).where(eq(transactions.id, check.transactionId));
+    }
+    await db.delete(checksNotes).where(eq(checksNotes.id, id));
   }
 
   async getUpcomingChecks(daysBefore: number = 7): Promise<CheckNoteWithCounterparty[]> {

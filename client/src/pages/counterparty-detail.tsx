@@ -240,6 +240,25 @@ export default function CounterpartyDetail() {
     },
   });
 
+  const deleteCheckMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/checks/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "checks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      toast({ title: "Çek/senet silindi" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
+    },
+  });
+
   const isSaleOrPurchaseTx = txType === "sale" || txType === "purchase";
 
   const lineItemTotal = (li: LineItem) => {
@@ -868,32 +887,48 @@ export default function CounterpartyDetail() {
                           {ck.receivedDate && <p className="text-xs text-gray-400 dark:text-muted-foreground">Alım: {formatDate(ck.receivedDate)}</p>}
                           {ck.notes && <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{ck.notes}</p>}
                         </div>
-                        {isPending && (
-                          <div className="flex gap-1 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7 px-2 text-emerald-600 dark:text-emerald-400"
-                              onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "paid" })}
-                              disabled={updateCheckStatusMutation.isPending}
-                              data-testid={`button-check-paid-${ck.id}`}
-                            >
-                              <Check className="w-3 h-3 mr-0.5" />
-                              Ödendi
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7 px-2 text-red-600 dark:text-red-400"
-                              onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "bounced" })}
-                              disabled={updateCheckStatusMutation.isPending}
-                              data-testid={`button-check-bounced-${ck.id}`}
-                            >
-                              <AlertCircle className="w-3 h-3 mr-0.5" />
-                              Karşılıks.
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex gap-1 shrink-0">
+                          {isPending && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7 px-2 text-emerald-600 dark:text-emerald-400"
+                                onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "paid" })}
+                                disabled={updateCheckStatusMutation.isPending}
+                                data-testid={`button-check-paid-${ck.id}`}
+                              >
+                                <Check className="w-3 h-3 mr-0.5" />
+                                Ödendi
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7 px-2 text-red-600 dark:text-red-400"
+                                onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "bounced" })}
+                                disabled={updateCheckStatusMutation.isPending}
+                                data-testid={`button-check-bounced-${ck.id}`}
+                              >
+                                <AlertCircle className="w-3 h-3 mr-0.5" />
+                                Karşılıks.
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-gray-400 dark:text-muted-foreground"
+                            onClick={() => {
+                              if (confirm("Bu çek/senedi silmek istediğinize emin misiniz? İlişkili işlemler de silinecektir.")) {
+                                deleteCheckMutation.mutate(ck.id);
+                              }
+                            }}
+                            disabled={deleteCheckMutation.isPending}
+                            data-testid={`button-check-delete-${ck.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
