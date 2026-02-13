@@ -57,6 +57,9 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - Sale transactions: select product from existing list
 - Stock detail dialog: click product card to view all stock movements (transactions + manual adjustments)
 - Balance formula: customer = sale - collection - purchase + payment; supplier = purchase - payment - sale + collection
+- Check/note creation automatically creates a linked transaction (received→collection, given→payment) that immediately affects counterparty balance
+- Check marked "paid" (ödendi): no balance change (already deducted at creation)
+- Check marked "bounced" (karşılıksız): creates reversal transaction to cancel the original effect
 
 ## API Endpoints
 - POST /api/auth/login - Login with password

@@ -49,7 +49,9 @@ export interface IStorage {
 
   getChecksByCounterparty(counterpartyId: string): Promise<CheckNote[]>;
   createCheckNote(data: InsertCheckNote): Promise<CheckNote>;
+  createCheckNoteWithTransaction(data: InsertCheckNote, transactionId: string): Promise<CheckNote>;
   updateCheckStatus(id: string, status: "paid" | "bounced"): Promise<CheckNote>;
+  bounceCheckNote(id: string): Promise<CheckNote>;
   getUpcomingChecks(daysBefore?: number): Promise<CheckNoteWithCounterparty[]>;
 
   resetAllData(): Promise<void>;
@@ -568,10 +570,50 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async createCheckNoteWithTransaction(data: InsertCheckNote, transactionId: string): Promise<CheckNote> {
+    const [created] = await db.insert(checksNotes).values({ ...data, transactionId }).returning();
+    return created;
+  }
+
   async updateCheckStatus(id: string, status: "paid" | "bounced"): Promise<CheckNote> {
     const [updated] = await db
       .update(checksNotes)
       .set({ status, updatedAt: new Date() })
+      .where(eq(checksNotes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async bounceCheckNote(id: string): Promise<CheckNote> {
+    const [check] = await db.select().from(checksNotes).where(eq(checksNotes.id, id));
+    if (!check) throw new Error("Çek/senet bulunamadı");
+    if (!check.transactionId) throw new Error("Bu çek/senetle ilişkili işlem bulunamadı");
+
+    const [originalTx] = await db.select().from(transactions).where(eq(transactions.id, check.transactionId));
+    if (!originalTx) throw new Error("İlişkili işlem bulunamadı");
+
+    const reverseTypeMap: Record<string, string> = {
+      sale: "collection",
+      collection: "sale",
+      purchase: "payment",
+      payment: "purchase",
+    };
+    const reverseTxType = reverseTypeMap[originalTx.txType] || "sale";
+    const kindLabel = check.kind === "check" ? "Çek" : "Senet";
+    const description = `Karşılıksız ${kindLabel} (İptal)`;
+
+    const [reverseTx] = await db.insert(transactions).values({
+      counterpartyId: check.counterpartyId,
+      txType: reverseTxType,
+      amount: originalTx.amount,
+      description,
+      txDate: new Date().toISOString().split('T')[0],
+      reversedOf: check.transactionId,
+    }).returning();
+
+    const [updated] = await db
+      .update(checksNotes)
+      .set({ status: "bounced", reversalTransactionId: reverseTx.id, updatedAt: new Date() })
       .where(eq(checksNotes.id, id))
       .returning();
     return updated;

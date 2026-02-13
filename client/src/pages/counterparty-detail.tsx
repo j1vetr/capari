@@ -204,7 +204,11 @@ export default function CounterpartyDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "checks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       toast({ title: "Kayıt eklendi" });
       setShowAddCheck(false);
       setCheckAmount("");
@@ -224,8 +228,12 @@ export default function CounterpartyDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "checks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
-      toast({ title: "Durum guncellendi" });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      toast({ title: "Durum güncellendi" });
     },
     onError: (err: Error) => {
       toast({ title: "Hata", description: err.message, variant: "destructive" });
@@ -858,7 +866,7 @@ export default function CounterpartyDetail() {
                         </div>
                         <p className="text-sm font-semibold mt-1">{formatCurrency(ck.amount)}</p>
                         <p className="text-xs text-gray-500 dark:text-muted-foreground">Vade: {formatDate(ck.dueDate)}</p>
-                        {ck.receivedDate && <p className="text-xs text-gray-400 dark:text-muted-foreground">Teslim: {formatDate(ck.receivedDate)}</p>}
+                        {ck.receivedDate && <p className="text-xs text-gray-400 dark:text-muted-foreground">Alım: {formatDate(ck.receivedDate)}</p>}
                         {ck.notes && <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{ck.notes}</p>}
                       </div>
                       {isPending && (
@@ -970,7 +978,7 @@ export default function CounterpartyDetail() {
               />
             </div>
             <div>
-              <Label className="text-xs mb-1 block">Teslim Tarihi (opsiyonel)</Label>
+              <Label className="text-xs mb-1 block">Alma Tarihi (opsiyonel)</Label>
               <Input
                 type="date"
                 value={checkReceivedDate}

@@ -775,11 +775,29 @@ export async function registerRoutes(
   app.post("/api/checks", requireAuth, async (req, res) => {
     try {
       const parsed = insertCheckNoteSchema.parse(req.body);
-      const check = await storage.createCheckNote(parsed);
+      const counterparty = await storage.getCounterparty(parsed.counterpartyId);
+      if (!counterparty) {
+        return res.status(404).json({ message: "Cari bulunamadı" });
+      }
+
+      const txType = parsed.direction === "received" ? "collection" : "payment";
+      const kindLabel = parsed.kind === "check" ? "Çek" : "Senet";
+      const dirLabel = parsed.direction === "received" ? "Alınan" : "Verilen";
+      const description = `${dirLabel} ${kindLabel}`;
+
+      const tx = await storage.createTransaction({
+        counterpartyId: parsed.counterpartyId,
+        txType,
+        amount: parsed.amount,
+        description,
+        txDate: parsed.dueDate,
+      });
+
+      const check = await storage.createCheckNoteWithTransaction(parsed, tx.id);
       res.json(check);
     } catch (e: any) {
       if (e.name === "ZodError") {
-        return res.status(400).json({ message: "Gecersiz veri", errors: e.errors });
+        return res.status(400).json({ message: "Geçersiz veri", errors: e.errors });
       }
       res.status(500).json({ message: e.message });
     }
@@ -789,10 +807,16 @@ export async function registerRoutes(
     try {
       const { status } = req.body;
       if (!["paid", "bounced"].includes(status)) {
-        return res.status(400).json({ message: "Gecersiz durum" });
+        return res.status(400).json({ message: "Geçersiz durum" });
       }
-      const updated = await storage.updateCheckStatus(req.params.id, status);
-      res.json(updated);
+
+      if (status === "bounced") {
+        const updated = await storage.bounceCheckNote(req.params.id);
+        res.json(updated);
+      } else {
+        const updated = await storage.updateCheckStatus(req.params.id, status);
+        res.json(updated);
+      }
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

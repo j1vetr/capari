@@ -187,8 +187,10 @@ export default function Counterparties() {
     }
     setCheckSaving(false);
     if (successCount > 0) {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", bulkCheckPartyId, "checks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       toast({ title: `${successCount} kayıt eklendi` });
       setCheckEntries([emptyCheckEntry()]);
       setBulkCheckPartyId("");
@@ -646,7 +648,7 @@ export default function Counterparties() {
 
                         <div className="grid grid-cols-2 gap-2 mb-2">
                           <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Teslim Tarihi</Label>
+                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Alma Tarihi</Label>
                             <Input
                               type="date"
                               value={entry.receivedDate}
