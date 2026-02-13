@@ -421,6 +421,15 @@ export default function CounterpartyDetail() {
 
   const filtered = txList?.filter((tx) => filterType === "all" || tx.txType === filterType) || [];
 
+  type TimelineItem =
+    | { type: "tx"; data: Transaction; sortDate: string }
+    | { type: "check"; data: CheckNote; sortDate: string };
+
+  const timelineItems: TimelineItem[] = [
+    ...filtered.map((tx) => ({ type: "tx" as const, data: tx, sortDate: tx.txDate })),
+    ...(checksData && (filterType === "all") ? checksData.map((ck) => ({ type: "check" as const, data: ck, sortDate: ck.dueDate })) : []),
+  ].sort((a, b) => b.sortDate.localeCompare(a.sortDate));
+
   const txTypeIcon = (type: string) => {
     switch (type) {
       case "sale": return <ShoppingCart className="w-4 h-4" />;
@@ -596,30 +605,34 @@ export default function CounterpartyDetail() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={() => setShowAddTx(true)} data-testid="button-add-tx">
               <Plus className="w-4 h-4" />
               İşlem Ekle
             </Button>
+            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={() => setShowAddCheck(true)} data-testid="button-add-check">
+              <FileText className="w-4 h-4" />
+              Çek/Senet Ekle
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleExportPDF} data-testid="button-export-pdf">
               <Download className="w-4 h-4" />
               PDF İndir
             </Button>
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsApp} disabled={whatsappSending} data-testid="button-whatsapp">
               <MessageCircle className="w-4 h-4" />
-              {whatsappSending ? "Gönderiliyor..." : "Hızlı Cari WhatsApp"}
+              {whatsappSending ? "..." : "Hızlı WA"}
             </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1" onClick={handleWhatsAppDetailed} disabled={pdfSending || !party?.phone} data-testid="button-whatsapp-pdf">
               <FileText className="w-4 h-4" />
-              {pdfSending ? "Gönderiliyor..." : "Detaylı Cari WhatsApp"}
-            </Button>
-            <Button variant="outline" className="h-12 gap-1.5 text-xs font-semibold flex-col py-1 text-red-500 dark:text-red-400" onClick={() => setConfirmDelete(true)} data-testid="button-delete-counterparty">
-              <Trash2 className="w-4 h-4" />
-              Sil
+              {pdfSending ? "..." : "Detay WA"}
             </Button>
           </div>
+          <Button variant="outline" className="h-9 gap-1.5 text-xs font-semibold text-red-500 dark:text-red-400 w-full" onClick={() => setConfirmDelete(true)} data-testid="button-delete-counterparty">
+            <Trash2 className="w-3.5 h-3.5" />
+            Cariyi Sil
+          </Button>
         </>
       )}
 
@@ -682,7 +695,7 @@ export default function CounterpartyDetail() {
           </Card>
         ))}
 
-        {!txLoading && filtered.length === 0 && (
+        {!txLoading && timelineItems.length === 0 && (
           <div className="text-center py-10">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-muted mx-auto mb-3">
               <ShoppingCart className="w-5 h-5 text-gray-400 dark:text-muted-foreground" />
@@ -692,114 +705,204 @@ export default function CounterpartyDetail() {
           </div>
         )}
 
-        {filtered.map((tx) => {
-          const isReversed = reversedIds.has(tx.id);
-          const isReversal = !!tx.reversedOf;
-          const parsedItems = parseLineItems(tx.description);
-          const hasItems = !!parsedItems && parsedItems.length > 0;
-          const isExpanded = expandedTx === tx.id;
-          return (
-            <Card
-              key={tx.id}
-              className={`${isReversed ? "opacity-50" : ""} ${isReversal ? "border-dashed" : ""} ${hasItems ? "cursor-pointer" : ""}`}
-              onClick={() => hasItems && setExpandedTx(isExpanded ? null : tx.id)}
-              data-testid={`card-tx-${tx.id}`}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-start gap-3">
-                  <div className={`flex items-center justify-center w-9 h-9 rounded-md mt-0.5 flex-shrink-0 ${txTypeBg(tx.txType)}`}>
-                    {txTypeIcon(tx.txType)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-sm font-semibold ${txTypeColor(tx.txType)}`}>
-                        {txTypeLabel(tx.txType)}
-                      </span>
-                      {hasItems && (
-                        <Badge variant="secondary" className="text-[10px]">{parsedItems!.length} kalem</Badge>
+        {timelineItems.map((item) => {
+          if (item.type === "tx") {
+            const tx = item.data;
+            const isReversed = reversedIds.has(tx.id);
+            const isReversal = !!tx.reversedOf;
+            const parsedItems = parseLineItems(tx.description);
+            const hasItems = !!parsedItems && parsedItems.length > 0;
+            const isExpanded = expandedTx === tx.id;
+            return (
+              <Card
+                key={`tx-${tx.id}`}
+                className={`${isReversed ? "opacity-50" : ""} ${isReversal ? "border-dashed" : ""} ${hasItems ? "cursor-pointer" : ""}`}
+                onClick={() => hasItems && setExpandedTx(isExpanded ? null : tx.id)}
+                data-testid={`card-tx-${tx.id}`}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex items-center justify-center w-9 h-9 rounded-md mt-0.5 flex-shrink-0 ${txTypeBg(tx.txType)}`}>
+                      {txTypeIcon(tx.txType)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm font-semibold ${txTypeColor(tx.txType)}`}>
+                          {txTypeLabel(tx.txType)}
+                        </span>
+                        {hasItems && (
+                          <Badge variant="secondary" className="text-[10px]">{parsedItems!.length} kalem</Badge>
+                        )}
+                        {isReversal && (
+                          <Badge variant="secondary" className="text-[10px]">Düzeltme</Badge>
+                        )}
+                        {isReversed && (
+                          <Badge variant="secondary" className="text-[10px] line-through">İptal Edildi</Badge>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-0.5">{formatDate(tx.txDate)}</p>
+                      {tx.description && !hasItems && (
+                        <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1 leading-relaxed">{tx.description}</p>
                       )}
-                      {isReversal && (
-                        <Badge variant="secondary" className="text-[10px]">Düzeltme</Badge>
-                      )}
-                      {isReversed && (
-                        <Badge variant="secondary" className="text-[10px] line-through">İptal Edildi</Badge>
+                      {hasItems && !isExpanded && (
+                        <p className="text-xs text-gray-400 dark:text-muted-foreground mt-1 flex items-center gap-1">
+                          <span className="truncate">{parsedItems!.map(i => i.product).join(", ")}</span>
+                          <ChevronDown className="w-3 h-3 flex-shrink-0" />
+                        </p>
                       )}
                     </div>
-                    <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-0.5">{formatDate(tx.txDate)}</p>
-                    {tx.description && !hasItems && (
-                      <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1 leading-relaxed">{tx.description}</p>
-                    )}
-                    {hasItems && !isExpanded && (
-                      <p className="text-xs text-gray-400 dark:text-muted-foreground mt-1 flex items-center gap-1">
-                        <span className="truncate">{parsedItems!.map(i => i.product).join(", ")}</span>
-                        <ChevronDown className="w-3 h-3 flex-shrink-0" />
-                      </p>
-                    )}
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className={`text-sm font-bold ${isReversed ? "line-through text-gray-400 dark:text-muted-foreground" : "text-gray-900 dark:text-foreground"}`}>
+                        {formatCurrency(tx.amount)}
+                      </span>
+                      {!isReversal && !isReversed && (
+                        <div className="flex gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] gap-1 text-gray-400 dark:text-muted-foreground px-1.5"
+                            onClick={(e) => { e.stopPropagation(); setConfirmReverse(tx.id); }}
+                            disabled={reverseMutation.isPending}
+                            data-testid={`button-reverse-${tx.id}`}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            D{"ü"}zelt
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] gap-1 text-red-400 dark:text-red-400 px-1.5"
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteTx(tx.id); }}
+                            disabled={deleteTxMutation.isPending}
+                            data-testid={`button-delete-tx-${tx.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Sil
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className={`text-sm font-bold ${isReversed ? "line-through text-gray-400 dark:text-muted-foreground" : "text-gray-900 dark:text-foreground"}`}>
-                      {formatCurrency(tx.amount)}
-                    </span>
-                    {!isReversal && !isReversed && (
+
+                  {hasItems && isExpanded && (
+                    <div className="mt-3 ml-12" data-testid={`detail-items-${tx.id}`}>
+                      <Separator className="mb-3" />
+                      <div className="flex flex-col gap-2">
+                        {parsedItems!.map((li, idx) => (
+                          <div key={idx} className="flex items-center gap-2.5" data-testid={`line-item-${tx.id}-${idx}`}>
+                            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-gray-50 dark:bg-muted flex-shrink-0">
+                              <Fish className="w-3.5 h-3.5 text-gray-400 dark:text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-800 dark:text-foreground">{li.product}</p>
+                              <p className="text-[11px] text-gray-400 dark:text-muted-foreground">
+                                {li.quantity} kg x {formatCurrency(li.unitPrice)}
+                              </p>
+                            </div>
+                            <span className="text-xs font-bold text-gray-700 dark:text-foreground flex-shrink-0">
+                              {formatCurrency(li.total)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <Separator className="mt-3 mb-2" />
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Toplam</span>
+                        <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency(tx.amount)}</span>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          } else {
+            const ck = item.data;
+            const isPending = ck.status === "pending";
+            const isPaid = ck.status === "paid";
+            const isBounced = ck.status === "bounced";
+            const dueDateObj = new Date(ck.dueDate);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const isOverdue = isPending && dueDateObj < today;
+            const daysLeft = Math.ceil((dueDateObj.getTime() - today.getTime()) / (1000*60*60*24));
+            return (
+              <Card key={`ck-${ck.id}`} className={`border-l-4 ${ck.kind === "check" ? "border-l-sky-400 dark:border-l-sky-600" : "border-l-amber-400 dark:border-l-amber-600"} ${isOverdue ? "border-red-300 dark:border-red-700 border-l-red-400 dark:border-l-red-600" : ""} rounded-none`}>
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex items-center justify-center w-9 h-9 rounded-md mt-0.5 flex-shrink-0 ${ck.kind === "check" ? "bg-sky-50 dark:bg-sky-950/30" : "bg-amber-50 dark:bg-amber-950/30"}`}>
+                      <FileText className={`w-4 h-4 ${ck.kind === "check" ? "text-sky-500" : "text-amber-500"}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant={ck.kind === "check" ? "default" : "secondary"} className="text-[10px]">
+                          {ck.kind === "check" ? "Çek" : "Senet"}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {ck.direction === "received" ? "Alınan" : "Verilen"}
+                        </Badge>
+                        {isPending && (
+                          <Badge variant={isOverdue ? "destructive" : "secondary"} className="text-[10px]">
+                            {isOverdue ? `${Math.abs(daysLeft)} gün geçti` : daysLeft === 0 ? "Bugün" : `${daysLeft} gün`}
+                          </Badge>
+                        )}
+                        {isPaid && <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Ödendi</Badge>}
+                        {isBounced && <Badge variant="destructive" className="text-[10px]">Karşılıks.</Badge>}
+                      </div>
+                      <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-0.5">Vade: {formatDate(ck.dueDate)}</p>
+                      {ck.receivedDate && <p className="text-[11px] text-gray-400 dark:text-muted-foreground">Alım: {formatDate(ck.receivedDate)}</p>}
+                      {ck.notes && <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{ck.notes}</p>}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency(ck.amount)}</span>
                       <div className="flex gap-0.5">
+                        {isPending && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] gap-0.5 text-emerald-600 dark:text-emerald-400 px-1.5"
+                              onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "paid" })}
+                              disabled={updateCheckStatusMutation.isPending}
+                              data-testid={`button-check-paid-${ck.id}`}
+                            >
+                              <Check className="w-3 h-3" />
+                              Ödendi
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] gap-0.5 text-red-500 dark:text-red-400 px-1.5"
+                              onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "bounced" })}
+                              disabled={updateCheckStatusMutation.isPending}
+                              data-testid={`button-check-bounced-${ck.id}`}
+                            >
+                              <AlertCircle className="w-3 h-3" />
+                              Karşılıks.
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 text-[10px] gap-1 text-gray-400 dark:text-muted-foreground px-1.5"
-                          onClick={(e) => { e.stopPropagation(); setConfirmReverse(tx.id); }}
-                          disabled={reverseMutation.isPending}
-                          data-testid={`button-reverse-${tx.id}`}
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          D{"ü"}zelt
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-[10px] gap-1 text-red-400 dark:text-red-400 px-1.5"
-                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteTx(tx.id); }}
-                          disabled={deleteTxMutation.isPending}
-                          data-testid={`button-delete-tx-${tx.id}`}
+                          className="h-6 text-[10px] gap-0.5 text-gray-400 dark:text-muted-foreground px-1.5"
+                          onClick={() => {
+                            if (confirm("Bu çek/senedi silmek istediğinize emin misiniz? İlişkili işlemler de silinecektir.")) {
+                              deleteCheckMutation.mutate(ck.id);
+                            }
+                          }}
+                          disabled={deleteCheckMutation.isPending}
+                          data-testid={`button-check-delete-${ck.id}`}
                         >
                           <Trash2 className="w-3 h-3" />
                           Sil
                         </Button>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {hasItems && isExpanded && (
-                  <div className="mt-3 ml-12" data-testid={`detail-items-${tx.id}`}>
-                    <Separator className="mb-3" />
-                    <div className="flex flex-col gap-2">
-                      {parsedItems!.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2.5" data-testid={`line-item-${tx.id}-${idx}`}>
-                          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-gray-50 dark:bg-muted flex-shrink-0">
-                            <Fish className="w-3.5 h-3.5 text-gray-400 dark:text-muted-foreground" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-800 dark:text-foreground">{item.product}</p>
-                            <p className="text-[11px] text-gray-400 dark:text-muted-foreground">
-                              {item.quantity} kg x {formatCurrency(item.unitPrice)}
-                            </p>
-                          </div>
-                          <span className="text-xs font-bold text-gray-700 dark:text-foreground flex-shrink-0">
-                            {formatCurrency(item.total)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <Separator className="mt-3 mb-2" />
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Toplam</span>
-                      <span className="text-sm font-bold text-gray-900 dark:text-foreground">{formatCurrency(tx.amount)}</span>
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          );
+                </CardContent>
+              </Card>
+            );
+          }
         })}
 
         {txTotal > TX_PAGE_SIZE && (
@@ -827,116 +930,6 @@ export default function CounterpartyDetail() {
             </Button>
           </div>
         )}
-
-        <div className="flex flex-col gap-2 mt-2">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Çek / Senet</p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowAddCheck(true)}
-              data-testid="button-add-check"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Ekle
-            </Button>
-          </div>
-          {checksLoading && (
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <Card key={i}><CardContent className="p-3"><Skeleton className="h-12 w-full" /></CardContent></Card>
-              ))}
-            </div>
-          )}
-          {checksData && checksData.length === 0 && (
-            <Card><CardContent className="p-4 text-center text-sm text-gray-400 dark:text-muted-foreground">Kayıtlı çek/senet yok</CardContent></Card>
-          )}
-          {checksData && checksData.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {checksData.map((ck) => {
-                const isPending = ck.status === "pending";
-                const isPaid = ck.status === "paid";
-                const isBounced = ck.status === "bounced";
-                const dueDate = new Date(ck.dueDate);
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                const isOverdue = isPending && dueDate < today;
-                const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000*60*60*24));
-                return (
-                  <Card key={ck.id} className={isOverdue ? "border-red-300 dark:border-red-700" : ""}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant={ck.kind === "check" ? "default" : "secondary"} className="text-[10px]">
-                              {ck.kind === "check" ? "Çek" : "Senet"}
-                            </Badge>
-                            <Badge variant="outline" className="text-[10px]">
-                              {ck.direction === "received" ? "Alınan" : "Verilen"}
-                            </Badge>
-                            {isPending && (
-                              <Badge variant={isOverdue ? "destructive" : "secondary"} className="text-[10px]">
-                                {isOverdue ? `${Math.abs(daysLeft)} gün geçti` : daysLeft === 0 ? "Bugün" : `${daysLeft} gün`}
-                              </Badge>
-                            )}
-                            {isPaid && <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Ödendi</Badge>}
-                            {isBounced && <Badge variant="destructive" className="text-[10px]">Karşılıks.</Badge>}
-                          </div>
-                          <p className="text-sm font-semibold mt-1">{formatCurrency(ck.amount)}</p>
-                          <p className="text-xs text-gray-500 dark:text-muted-foreground">Vade: {formatDate(ck.dueDate)}</p>
-                          {ck.receivedDate && <p className="text-xs text-gray-400 dark:text-muted-foreground">Alım: {formatDate(ck.receivedDate)}</p>}
-                          {ck.notes && <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{ck.notes}</p>}
-                        </div>
-                        <div className="flex gap-1 shrink-0">
-                          {isPending && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs h-7 px-2 text-emerald-600 dark:text-emerald-400"
-                                onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "paid" })}
-                                disabled={updateCheckStatusMutation.isPending}
-                                data-testid={`button-check-paid-${ck.id}`}
-                              >
-                                <Check className="w-3 h-3 mr-0.5" />
-                                Ödendi
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs h-7 px-2 text-red-600 dark:text-red-400"
-                                onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "bounced" })}
-                                disabled={updateCheckStatusMutation.isPending}
-                                data-testid={`button-check-bounced-${ck.id}`}
-                              >
-                                <AlertCircle className="w-3 h-3 mr-0.5" />
-                                Karşılıks.
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="text-gray-400 dark:text-muted-foreground"
-                            onClick={() => {
-                              if (confirm("Bu çek/senedi silmek istediğinize emin misiniz? İlişkili işlemler de silinecektir.")) {
-                                deleteCheckMutation.mutate(ck.id);
-                              }
-                            }}
-                            disabled={deleteCheckMutation.isPending}
-                            data-testid={`button-check-delete-${ck.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
 
       <Dialog open={showAddCheck} onOpenChange={setShowAddCheck}>
