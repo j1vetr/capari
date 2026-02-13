@@ -624,13 +624,15 @@ export class DatabaseStorage implements IStorage {
     const [check] = await db.select().from(checksNotes).where(eq(checksNotes.id, id));
     if (!check) throw new Error("Çek/senet bulunamadı");
 
-    if (check.reversalTransactionId) {
-      await db.delete(transactions).where(eq(transactions.id, check.reversalTransactionId));
-    }
-    if (check.transactionId) {
-      await db.delete(transactions).where(eq(transactions.id, check.transactionId));
-    }
+    const txIdsToDelete: string[] = [];
+    if (check.reversalTransactionId) txIdsToDelete.push(check.reversalTransactionId);
+    if (check.transactionId) txIdsToDelete.push(check.transactionId);
+
     await db.delete(checksNotes).where(eq(checksNotes.id, id));
+
+    for (const txId of txIdsToDelete) {
+      await db.delete(transactions).where(eq(transactions.id, txId));
+    }
   }
 
   async getUpcomingChecks(daysBefore: number = 7): Promise<CheckNoteWithCounterparty[]> {
