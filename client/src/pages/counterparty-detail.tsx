@@ -62,6 +62,7 @@ export default function CounterpartyDetail() {
   const [checkDirection, setCheckDirection] = useState<"received" | "given">("received");
   const [checkAmount, setCheckAmount] = useState("");
   const [checkDueDate, setCheckDueDate] = useState("");
+  const [checkReceivedDate, setCheckReceivedDate] = useState("");
   const [checkNotes, setCheckNotes] = useState("");
 
   const { data: party, isLoading: partyLoading } = useQuery<CounterpartyWithBalance>({
@@ -204,10 +205,11 @@ export default function CounterpartyDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "checks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
-      toast({ title: "Kayit eklendi" });
+      toast({ title: "Kay\u0131t eklendi" });
       setShowAddCheck(false);
       setCheckAmount("");
       setCheckDueDate("");
+      setCheckReceivedDate("");
       setCheckNotes("");
     },
     onError: (err: Error) => {
@@ -802,7 +804,7 @@ export default function CounterpartyDetail() {
 
       <div className="flex flex-col gap-2 mt-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Cek / Senet</p>
+          <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">\u00C7ek / Senet</p>
           <Button
             size="sm"
             variant="outline"
@@ -821,7 +823,7 @@ export default function CounterpartyDetail() {
           </div>
         )}
         {checksData && checksData.length === 0 && (
-          <Card><CardContent className="p-4 text-center text-sm text-gray-400 dark:text-muted-foreground">Kayitli cek/senet yok</CardContent></Card>
+          <Card><CardContent className="p-4 text-center text-sm text-gray-400 dark:text-muted-foreground">Kay\u0131tl\u0131 \u00E7ek/senet yok</CardContent></Card>
         )}
         {checksData && checksData.length > 0 && (
           <div className="flex flex-col gap-2">
@@ -841,21 +843,22 @@ export default function CounterpartyDetail() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant={ck.kind === "check" ? "default" : "secondary"} className="text-[10px]">
-                            {ck.kind === "check" ? "Cek" : "Senet"}
+                            {ck.kind === "check" ? "\u00C7ek" : "Senet"}
                           </Badge>
                           <Badge variant="outline" className="text-[10px]">
-                            {ck.direction === "received" ? "Alinan" : "Verilen"}
+                            {ck.direction === "received" ? "Al\u0131nan" : "Verilen"}
                           </Badge>
                           {isPending && (
                             <Badge variant={isOverdue ? "destructive" : "secondary"} className="text-[10px]">
-                              {isOverdue ? `${Math.abs(daysLeft)} gun gecti` : daysLeft === 0 ? "Bugun" : `${daysLeft} gun`}
+                              {isOverdue ? `${Math.abs(daysLeft)} g\u00FCn ge\u00E7ti` : daysLeft === 0 ? "Bug\u00FCn" : `${daysLeft} g\u00FCn`}
                             </Badge>
                           )}
-                          {isPaid && <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Odendi</Badge>}
-                          {isBounced && <Badge variant="destructive" className="text-[10px]">Karsiliks.</Badge>}
+                          {isPaid && <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">\u00D6dendi</Badge>}
+                          {isBounced && <Badge variant="destructive" className="text-[10px]">Kar\u015F\u0131l\u0131ks.</Badge>}
                         </div>
                         <p className="text-sm font-semibold mt-1">{formatCurrency(ck.amount)}</p>
                         <p className="text-xs text-gray-500 dark:text-muted-foreground">Vade: {formatDate(ck.dueDate)}</p>
+                        {ck.receivedDate && <p className="text-xs text-gray-400 dark:text-muted-foreground">Teslim: {formatDate(ck.receivedDate)}</p>}
                         {ck.notes && <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{ck.notes}</p>}
                       </div>
                       {isPending && (
@@ -869,7 +872,7 @@ export default function CounterpartyDetail() {
                             data-testid={`button-check-paid-${ck.id}`}
                           >
                             <Check className="w-3 h-3 mr-0.5" />
-                            Odendi
+                            \u00D6dendi
                           </Button>
                           <Button
                             size="sm"
@@ -880,7 +883,7 @@ export default function CounterpartyDetail() {
                             data-testid={`button-check-bounced-${ck.id}`}
                           >
                             <AlertCircle className="w-3 h-3 mr-0.5" />
-                            Karsiliks.
+                            Kar\u015F\u0131l\u0131ks.
                           </Button>
                         </div>
                       )}
@@ -896,12 +899,12 @@ export default function CounterpartyDetail() {
       <Dialog open={showAddCheck} onOpenChange={setShowAddCheck}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cek/Senet Ekle</DialogTitle>
-            <DialogDescription>{party?.name} icin yeni cek veya senet kaydi</DialogDescription>
+            <DialogTitle>\u00C7ek/Senet Ekle</DialogTitle>
+            <DialogDescription>{party?.name} i\u00E7in yeni \u00E7ek veya senet kayd\u0131</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 mt-2">
             <div>
-              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Tur</Label>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">T\u00FCr</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -910,7 +913,7 @@ export default function CounterpartyDetail() {
                   data-testid="button-kind-check"
                 >
                   <FileText className="w-4 h-4 mx-auto mb-1" />
-                  Cek
+                  \u00C7ek
                 </button>
                 <button
                   type="button"
@@ -924,7 +927,7 @@ export default function CounterpartyDetail() {
               </div>
             </div>
             <div>
-              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Yon</Label>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Y\u00F6n</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -933,7 +936,7 @@ export default function CounterpartyDetail() {
                   data-testid="button-direction-received"
                 >
                   <ArrowDownToLine className="w-4 h-4 mx-auto mb-1" />
-                  Alinan
+                  Al\u0131nan
                 </button>
                 <button
                   type="button"
@@ -967,6 +970,15 @@ export default function CounterpartyDetail() {
               />
             </div>
             <div>
+              <Label className="text-xs mb-1 block">Teslim Tarihi (opsiyonel)</Label>
+              <Input
+                type="date"
+                value={checkReceivedDate}
+                onChange={(e) => setCheckReceivedDate(e.target.value)}
+                data-testid="input-check-received-date"
+              />
+            </div>
+            <div>
               <Label className="text-xs mb-1 block">Not (opsiyonel)</Label>
               <Input
                 value={checkNotes}
@@ -993,6 +1005,7 @@ export default function CounterpartyDetail() {
                   direction: checkDirection,
                   amount: amt.toFixed(2),
                   dueDate: checkDueDate,
+                  receivedDate: checkReceivedDate || null,
                   status: "pending",
                   notes: checkNotes || null,
                 });

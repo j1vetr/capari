@@ -17,7 +17,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - `server/routes.ts` - Express API routes
 - `server/pdf.ts` - PDF generation for counterparty statements and daily reports
 - `server/seed.ts` - Demo seed data (customers, suppliers, transactions)
-- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties, counterparty-detail, reports, stock
+- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties (with bulk check/note modal), counterparty-detail, reports, stock
 - `client/src/lib/formatters.ts` - Currency/date formatting utilities (Turkish locale)
 
 ## Key Features
@@ -41,7 +41,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - **products**: id (uuid), name, unit (kg|kasa|adet), is_active (boolean)
 - **transaction_items**: id (uuid), transaction_id (fk), product_id (fk), quantity (numeric 10,2), unit_price (numeric 10,2 nullable)
 - **stock_adjustments**: id (uuid), product_id (fk), quantity (numeric 10,2), notes (text nullable)
-- **checks_notes**: id (uuid), counterparty_id (fk), kind (check|note), direction (received|given), amount (numeric 12,2), due_date (date), status (pending|paid|bounced), notes (text nullable), transaction_id (uuid nullable), reversal_transaction_id (uuid nullable)
+- **checks_notes**: id (uuid), counterparty_id (fk), kind (check|note), direction (received|given), amount (numeric 12,2), due_date (date), received_date (date nullable), status (pending|paid|bounced), notes (text nullable), transaction_id (uuid nullable), reversal_transaction_id (uuid nullable)
 
 ## Business Rules
 - Customer balance = sum(sale) - sum(collection) → positive = customer owes us

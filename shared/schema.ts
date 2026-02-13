@@ -76,6 +76,7 @@ export const checksNotes = pgTable("checks_notes", {
   direction: text("direction", { enum: ["received", "given"] }).notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   dueDate: date("due_date").notNull(),
+  receivedDate: date("received_date"),
   status: text("status", { enum: ["pending", "paid", "bounced"] }).notNull().default("pending"),
   notes: text("notes"),
   transactionId: uuid("transaction_id").references(() => transactions.id),
