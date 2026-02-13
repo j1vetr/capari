@@ -120,8 +120,8 @@ export default function Counterparties() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       setBulkResult(data);
       toast({
-        title: `${data.summary.added} i\u015Flem ba\u015Far\u0131yla eklendi`,
-        description: data.summary.errors > 0 ? `${data.summary.errors} hata olu\u015Ftu` : undefined,
+        title: `${data.summary.added} işlem başarıyla eklendi`,
+        description: data.summary.errors > 0 ? `${data.summary.errors} hata oluştu` : undefined,
       });
     },
     onError: (err: Error) => {
@@ -131,12 +131,12 @@ export default function Counterparties() {
 
   const handleBulkImport = () => {
     if (!bulkPartyId) {
-      toast({ title: "Cari se\u00E7in", description: "L\u00FCtfen i\u015Flem eklenecek cariyi se\u00E7in", variant: "destructive" });
+      toast({ title: "Cari seçin", description: "Lütfen işlem eklenecek cariyi seçin", variant: "destructive" });
       return;
     }
     const parsed = parseBulkTransactions(bulkText);
     if (parsed.length === 0) {
-      toast({ title: "Ge\u00E7erli i\u015Flem bulunamad\u0131", description: "Her sat\u0131ra: Tutar, ald\u0131k/verdik yaz\u0131n", variant: "destructive" });
+      toast({ title: "Geçerli işlem bulunamadı", description: "Her satıra: Tutar, aldık/verdik yazın", variant: "destructive" });
       return;
     }
     setBulkResult(null);
@@ -163,7 +163,7 @@ export default function Counterparties() {
   const handleSaveChecks = async () => {
     if (!bulkCheckPartyId) return;
     if (validCheckEntries.length === 0) {
-      toast({ title: "En az bir ge\u00E7erli kay\u0131t girin", variant: "destructive" });
+      toast({ title: "En az bir geçerli kayıt girin", variant: "destructive" });
       return;
     }
     setCheckSaving(true);
@@ -189,7 +189,7 @@ export default function Counterparties() {
     if (successCount > 0) {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", bulkCheckPartyId, "checks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
-      toast({ title: `${successCount} kay\u0131t eklendi` });
+      toast({ title: `${successCount} kayıt eklendi` });
       setCheckEntries([emptyCheckEntry()]);
       setBulkCheckPartyId("");
       setShowBulkChecks(false);
@@ -212,7 +212,7 @@ export default function Counterparties() {
             data-testid="button-bulk-checks"
           >
             <FileText className="w-4 h-4" />
-            Toplu \u00C7ek/Senet
+            Toplu Çek/Senet
           </Button>
           <Button
             variant="outline"
@@ -235,11 +235,11 @@ export default function Counterparties() {
         <TabsList className="w-full grid grid-cols-2 h-11">
           <TabsTrigger value="customer" className="gap-2 text-sm font-semibold" data-testid="tab-customers">
             <Store className="w-4 h-4" />
-            M\u00FC\u015Fteriler
+            Müşteriler
           </TabsTrigger>
           <TabsTrigger value="supplier" className="gap-2 text-sm font-semibold" data-testid="tab-suppliers">
             <Truck className="w-4 h-4" />
-            Tedarik\u00E7iler
+            Tedarikçiler
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -251,10 +251,10 @@ export default function Counterparties() {
         <CardContent className="p-3 flex items-center justify-between gap-2">
           <div>
             <p className="text-xs font-medium text-gray-500 dark:text-muted-foreground">
-              {count} {tab === "customer" ? "m\u00FC\u015Fteri" : "tedarik\u00E7i"}
+              {count} {tab === "customer" ? "müşteri" : "tedarikçi"}
             </p>
             <p className="text-xs text-gray-400 dark:text-muted-foreground">
-              {tab === "customer" ? "toplam alacak" : "toplam bor\u00E7"}
+              {tab === "customer" ? "toplam alacak" : "toplam borç"}
             </p>
           </div>
           <p className={`text-lg font-bold ${tab === "customer"
@@ -269,7 +269,7 @@ export default function Counterparties() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-muted-foreground" />
         <Input
-          placeholder={`${tab === "customer" ? "M\u00FC\u015Fteri" : "Tedarik\u00E7i"} ara...`}
+          placeholder={`${tab === "customer" ? "Müşteri" : "Tedarikçi"} ara...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10 bg-white dark:bg-card"
@@ -299,9 +299,9 @@ export default function Counterparties() {
                 : <Truck className="w-6 h-6 text-gray-400 dark:text-muted-foreground" />}
             </div>
             <p className="text-sm font-medium text-gray-500 dark:text-muted-foreground">
-              {search ? `"${search}" bulunamad\u0131` : tab === "customer" ? "Hen\u00FCz m\u00FC\u015Fteri eklenmemi\u015F" : "Hen\u00FCz tedarik\u00E7i eklenmemi\u015F"}
+              {search ? `"${search}" bulunamadı` : tab === "customer" ? "Henüz müşteri eklenmemiş" : "Henüz tedarikçi eklenmemiş"}
             </p>
-            <p className="text-xs text-gray-400 dark:text-muted-foreground mt-1">\u0130\u015Flem Ekle sayfas\u0131ndan yeni firma ekleyebilirsiniz</p>
+            <p className="text-xs text-gray-400 dark:text-muted-foreground mt-1">İşlem Ekle sayfasından yeni firma ekleyebilirsiniz</p>
           </div>
         )}
 
@@ -329,7 +329,7 @@ export default function Counterparties() {
                     {p.invoiced && (
                       <Badge variant="secondary" className="text-[9px] gap-0.5 px-1.5">
                         <FileText className="w-2.5 h-2.5" />
-                        Fatural\u0131
+                        Faturalı
                       </Badge>
                     )}
                   </div>
@@ -351,9 +351,9 @@ export default function Counterparties() {
                   </p>
                   <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
                     {bal > 0
-                      ? tab === "customer" ? "alacak" : "bor\u00E7"
+                      ? tab === "customer" ? "alacak" : "borç"
                       : bal < 0
-                        ? tab === "customer" ? "bor\u00E7" : "alacak"
+                        ? tab === "customer" ? "borç" : "alacak"
                         : "dengeli"}
                   </p>
                 </div>
@@ -369,9 +369,9 @@ export default function Counterparties() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Upload className="w-5 h-5 text-sky-600" />
-              Toplu \u0130\u015Flem Aktar\u0131m\u0131
+              Toplu İşlem Aktarımı
             </DialogTitle>
-            <DialogDescription>Se\u00E7ti\u011Finiz cariye eski defterden i\u015Flemleri toplu ekleyin</DialogDescription>
+            <DialogDescription>Seçtiğiniz cariye eski defterden işlemleri toplu ekleyin</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3 flex-1 overflow-hidden">
@@ -382,7 +382,7 @@ export default function Counterparties() {
                 data-testid="bulk-tab-customer"
               >
                 <Store className="w-3.5 h-3.5" />
-                M\u00FC\u015Fteri
+                Müşteri
               </button>
               <button
                 className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${bulkType === "supplier" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
@@ -390,17 +390,17 @@ export default function Counterparties() {
                 data-testid="bulk-tab-supplier"
               >
                 <Truck className="w-3.5 h-3.5" />
-                Tedarik\u00E7i
+                Tedarikçi
               </button>
             </div>
 
             <div>
               <Label className="text-xs font-medium mb-1.5 block text-gray-600 dark:text-muted-foreground">
-                {bulkType === "customer" ? "M\u00FC\u015Fteri" : "Tedarik\u00E7i"} Se\u00E7in
+                {bulkType === "customer" ? "Müşteri" : "Tedarikçi"} Seçin
               </Label>
               <Select value={bulkPartyId} onValueChange={(v) => { setBulkPartyId(v); setBulkResult(null); }}>
                 <SelectTrigger data-testid="select-bulk-party">
-                  <SelectValue placeholder={`${bulkType === "customer" ? "M\u00FC\u015Fteri" : "Tedarik\u00E7i"} se\u00E7in...`} />
+                  <SelectValue placeholder={`${bulkType === "customer" ? "Müşteri" : "Tedarikçi"} seçin...`} />
                 </SelectTrigger>
                 <SelectContent>
                   {bulkParties.map(p => (
@@ -410,7 +410,7 @@ export default function Counterparties() {
                   ))}
                   {bulkParties.length === 0 && (
                     <div className="px-3 py-2 text-xs text-muted-foreground">
-                      Hen\u00FCz {bulkType === "customer" ? "m\u00FC\u015Fteri" : "tedarik\u00E7i"} eklenmemi\u015F
+                      Henüz {bulkType === "customer" ? "müşteri" : "tedarikçi"} eklenmemiş
                     </div>
                   )}
                 </SelectContent>
@@ -423,27 +423,27 @@ export default function Counterparties() {
                   <CardContent className="p-3">
                     <p className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-1">Format</p>
                     <p className="text-xs text-gray-500 dark:text-muted-foreground leading-relaxed">
-                      Her sat\u0131ra: <strong>Tutar, ald\u0131k/verdik, Tarih, Not</strong>. Stok etkilemez.
+                      Her satıra: <strong>Tutar, aldık/verdik, Tarih, Not</strong>. Stok etkilemez.
                     </p>
                     <div className="mt-2 p-2 rounded-md bg-white dark:bg-card border border-dashed border-gray-200 dark:border-muted">
                       <p className="text-[11px] text-gray-400 dark:text-muted-foreground font-mono leading-relaxed">
                         {bulkType === "customer" ? (
-                          <>106.050,verdik,30.11.2025,KALAN BAK\u0130YE<br/>11.200,ald\u0131k,09.12.2025,TOPLAM F\u0130\u015E<br/>5000,verdik,15.12.2025</>
+                          <>106.050,verdik,30.11.2025,KALAN BAKİYE<br/>11.200,aldık,09.12.2025,TOPLAM FİŞ<br/>5000,verdik,15.12.2025</>
                         ) : (
-                          <>80.000,ald\u0131k,10.03.2025,MAL ALIMI<br/>40.000,verdik,20.08.2025,HAVALE<br/>15.000,ald\u0131k,01.12.2025</>
+                          <>80.000,aldık,10.03.2025,MAL ALIMI<br/>40.000,verdik,20.08.2025,HAVALE<br/>15.000,aldık,01.12.2025</>
                         )}
                       </p>
                     </div>
                     <div className="mt-1.5 flex flex-col gap-0.5">
                       <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
                         {bulkType === "customer"
-                          ? <><strong>verdik</strong> = m\u00FC\u015Fteriye mal verdik, bize bor\u00E7lu</>
-                          : <><strong>ald\u0131k</strong> = tedarik\u00E7iden mal ald\u0131k, biz bor\u00E7luyuz</>}
+                          ? <><strong>verdik</strong> = müşteriye mal verdik, bize borçlu</>
+                          : <><strong>aldık</strong> = tedarikçiden mal aldık, biz borçluyuz</>}
                       </p>
                       <p className="text-[10px] text-gray-500 dark:text-muted-foreground">
                         {bulkType === "customer"
-                          ? <><strong>ald\u0131k</strong> = m\u00FC\u015Fteriden para ald\u0131k / tahsilat</>
-                          : <><strong>verdik</strong> = tedarik\u00E7iye \u00F6deme yapt\u0131k</>}
+                          ? <><strong>aldık</strong> = müşteriden para aldık / tahsilat</>
+                          : <><strong>verdik</strong> = tedarikçiye ödeme yaptık</>}
                       </p>
                       <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
                         Tarih ve not opsiyonel. Tarih: GG.AA.YYYY. Tutar: 106.050 veya 106050
@@ -454,12 +454,12 @@ export default function Counterparties() {
 
                 <div>
                   <Label className="text-xs font-medium mb-1.5 block text-gray-600 dark:text-muted-foreground">
-                    \u0130\u015Flem Listesi
+                    İşlem Listesi
                   </Label>
                   <Textarea
                     placeholder={bulkType === "customer"
-                      ? "106.050,verdik,30.11.2025,KALAN BAK\u0130YE\n11.200,ald\u0131k,09.12.2025,TOPLAM F\u0130\u015E\n5000,verdik"
-                      : "80.000,ald\u0131k,10.03.2025,MAL ALIMI\n40.000,verdik,20.08.2025,HAVALE\n15.000,ald\u0131k"
+                      ? "106.050,verdik,30.11.2025,KALAN BAKİYE\n11.200,aldık,09.12.2025,TOPLAM FİŞ\n5000,verdik"
+                      : "80.000,aldık,10.03.2025,MAL ALIMI\n40.000,verdik,20.08.2025,HAVALE\n15.000,aldık"
                     }
                     value={bulkText}
                     onChange={(e) => { setBulkText(e.target.value); setBulkResult(null); }}
@@ -468,7 +468,7 @@ export default function Counterparties() {
                   />
                   {bulkText.trim() && (
                     <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-1">
-                      {parseBulkTransactions(bulkText).length} i\u015Flem alg\u0131land\u0131
+                      {parseBulkTransactions(bulkText).length} işlem algılandı
                     </p>
                   )}
                 </div>
@@ -482,11 +482,11 @@ export default function Counterparties() {
                     <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
                     <div className="text-xs flex-1 min-w-0">
                       <p className="font-semibold text-green-800 dark:text-green-300">
-                        {bulkResult.summary.added} i\u015Flem ba\u015Far\u0131yla eklendi
+                        {bulkResult.summary.added} işlem başarıyla eklendi
                       </p>
                       {bulkResult.summary.errors > 0 && (
                         <p className="text-red-500 mt-0.5">
-                          {bulkResult.summary.errors} hata olu\u015Ftu
+                          {bulkResult.summary.errors} hata oluştu
                         </p>
                       )}
                     </div>
@@ -503,7 +503,7 @@ export default function Counterparties() {
                 data-testid="button-submit-bulk-transactions"
               >
                 <Upload className="w-4 h-4" />
-                {bulkMutation.isPending ? "Aktar\u0131l\u0131yor..." : "\u0130\u015Flemleri Aktar"}
+                {bulkMutation.isPending ? "Aktarılıyor..." : "İşlemleri Aktar"}
               </Button>
               {bulkResult && (
                 <Button
@@ -524,9 +524,9 @@ export default function Counterparties() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-sky-600" />
-              Toplu \u00C7ek/Senet Giri\u015Fi
+              Toplu Çek/Senet Girişi
             </DialogTitle>
-            <DialogDescription>Se\u00E7ti\u011Finiz cariye toplu \u00E7ek veya senet ekleyin</DialogDescription>
+            <DialogDescription>Seçtiğiniz cariye toplu çek veya senet ekleyin</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
@@ -537,7 +537,7 @@ export default function Counterparties() {
                 data-testid="bulk-check-tab-customer"
               >
                 <Store className="w-3.5 h-3.5" />
-                M\u00FC\u015Fteri
+                Müşteri
               </button>
               <button
                 className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${bulkCheckType === "supplier" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
@@ -545,17 +545,17 @@ export default function Counterparties() {
                 data-testid="bulk-check-tab-supplier"
               >
                 <Truck className="w-3.5 h-3.5" />
-                Tedarik\u00E7i
+                Tedarikçi
               </button>
             </div>
 
             <div>
               <Label className="text-xs font-medium mb-1.5 block text-gray-600 dark:text-muted-foreground">
-                {bulkCheckType === "customer" ? "M\u00FC\u015Fteri" : "Tedarik\u00E7i"} Se\u00E7in
+                {bulkCheckType === "customer" ? "Müşteri" : "Tedarikçi"} Seçin
               </Label>
               <Select value={bulkCheckPartyId} onValueChange={setBulkCheckPartyId}>
                 <SelectTrigger data-testid="select-bulk-check-party">
-                  <SelectValue placeholder={`${bulkCheckType === "customer" ? "M\u00FC\u015Fteri" : "Tedarik\u00E7i"} se\u00E7in...`} />
+                  <SelectValue placeholder={`${bulkCheckType === "customer" ? "Müşteri" : "Tedarikçi"} seçin...`} />
                 </SelectTrigger>
                 <SelectContent>
                   {bulkCheckParties.map(p => (
@@ -565,7 +565,7 @@ export default function Counterparties() {
                   ))}
                   {bulkCheckParties.length === 0 && (
                     <div className="px-3 py-2 text-xs text-muted-foreground">
-                      Hen\u00FCz {bulkCheckType === "customer" ? "m\u00FC\u015Fteri" : "tedarik\u00E7i"} eklenmemi\u015F
+                      Henüz {bulkCheckType === "customer" ? "müşteri" : "tedarikçi"} eklenmemiş
                     </div>
                   )}
                 </SelectContent>
@@ -594,25 +594,25 @@ export default function Counterparties() {
 
                         <div className="grid grid-cols-2 gap-2 mb-2">
                           <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">T\u00FCr</Label>
+                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Tür</Label>
                             <Select value={entry.kind} onValueChange={(v) => updateCheckEntry(entry.id, "kind", v)}>
                               <SelectTrigger className="h-8 text-xs" data-testid={`select-check-kind-${entry.id}`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="check">\u00C7ek</SelectItem>
+                                <SelectItem value="check">Çek</SelectItem>
                                 <SelectItem value="note">Senet</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Y\u00F6n</Label>
+                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Yön</Label>
                             <Select value={entry.direction} onValueChange={(v) => updateCheckEntry(entry.id, "direction", v)}>
                               <SelectTrigger className="h-8 text-xs" data-testid={`select-check-direction-${entry.id}`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="received">Al\u0131nan</SelectItem>
+                                <SelectItem value="received">Alınan</SelectItem>
                                 <SelectItem value="given">Verilen</SelectItem>
                               </SelectContent>
                             </Select>
@@ -673,7 +673,7 @@ export default function Counterparties() {
 
                 <Button variant="outline" className="w-full" onClick={addCheckEntry} data-testid="button-add-check-entry">
                   <Plus className="w-4 h-4 mr-1" />
-                  Sat\u0131r Ekle
+                  Satır Ekle
                 </Button>
 
                 <Card className="bg-gray-50 dark:bg-muted/30 border-0">
@@ -683,7 +683,7 @@ export default function Counterparties() {
                         <p className="text-xs text-gray-500 dark:text-muted-foreground">Toplam</p>
                         <p className="text-lg font-bold text-gray-900 dark:text-foreground">{formatCurrency(checkTotalAmount)}</p>
                       </div>
-                      <Badge variant="secondary" className="text-xs">{validCheckEntries.length} ge\u00E7erli kay\u0131t</Badge>
+                      <Badge variant="secondary" className="text-xs">{validCheckEntries.length} geçerli kayıt</Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -697,7 +697,7 @@ export default function Counterparties() {
                   {checkSaving ? "Kaydediliyor..." : (
                     <>
                       <Check className="w-4 h-4 mr-1" />
-                      {validCheckEntries.length} Kay\u0131d\u0131 Ekle
+                      {validCheckEntries.length} Kayıdı Ekle
                     </>
                   )}
                 </Button>

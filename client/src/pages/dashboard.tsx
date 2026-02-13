@@ -151,7 +151,7 @@ export default function Dashboard() {
                 <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                    {overdue.length > 0 ? `${overdue.length} adet vadesi ge\u00E7mi\u015F \u00E7ek/senet!` : `${dueSoon.length} adet vadesi yakla\u015Fan \u00E7ek/senet`}
+                    {overdue.length > 0 ? `${overdue.length} adet vadesi geçmiş çek/senet!` : `${dueSoon.length} adet vadesi yaklaşan çek/senet`}
                   </p>
                   <div className="flex flex-col gap-1 mt-1">
                     {upcomingChecks.slice(0, 5).map(c => {
@@ -166,7 +166,7 @@ export default function Dashboard() {
                           <span className="text-amber-500 dark:text-amber-500">-</span>
                           <span className="text-amber-600 dark:text-amber-400">{formatCurrency(c.amount)}</span>
                           <span className="text-amber-500 dark:text-amber-500">
-                            ({isOvd ? `${Math.abs(daysLeft)} g\u00FCn ge\u00E7ti` : daysLeft === 0 ? "bug\u00FCn" : `${daysLeft} g\u00FCn`})
+                            ({isOvd ? `${Math.abs(daysLeft)} gün geçti` : daysLeft === 0 ? "bugün" : `${daysLeft} gün`})
                           </span>
                         </div>
                       );
@@ -285,7 +285,7 @@ export default function Dashboard() {
 
       <Button variant="outline" className="w-full h-11 gap-1.5 text-xs font-semibold" onClick={() => navigate("/islem-ekle")} data-testid="button-quick-tx">
         <Plus className="w-4 h-4" />
-        H\u0131zl\u0131 \u0130\u015Flem Ekle
+        Hızlı İşlem Ekle
       </Button>
 
       {recentTxs && recentTxs.length > 0 && (
