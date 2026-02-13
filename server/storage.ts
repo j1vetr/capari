@@ -366,7 +366,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const dailyBreakdown = Array.from(dailyMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => b.localeCompare(a))
       .map(([date, d]) => ({
         date,
         sales: d.sales.toFixed(2),
