@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import type { CounterpartyWithBalance, Transaction, TransactionWithCounterparty } from "@shared/schema";
+import type { CounterpartyWithBalance, Transaction, TransactionWithCounterparty, CheckNote } from "@shared/schema";
 const FONT_REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
 const FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
 
@@ -97,7 +97,8 @@ function drawFooter(doc: PDFKit.PDFDocument, leftMargin: number, pageWidth: numb
 
 export function generateCounterpartyPDF(
   party: CounterpartyWithBalance,
-  transactions: Transaction[]
+  transactions: Transaction[],
+  checks?: CheckNote[]
 ): PDFKit.PDFDocument {
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const leftMargin = 40;
@@ -188,6 +189,73 @@ export function generateCounterpartyPDF(
 
   doc.moveTo(leftMargin, tableY).lineTo(rightEdge, tableY).lineWidth(0.5).strokeColor(COLORS.border).stroke();
   doc.fillColor(COLORS.text);
+
+  if (checks && checks.length > 0) {
+    doc.y = tableY + 15;
+    if (doc.y > 680) {
+      doc.addPage();
+      doc.font(FONT_REGULAR);
+      doc.y = 40;
+    }
+
+    doc.font(FONT_BOLD).fontSize(10).fillColor(COLORS.primary);
+    doc.text(`Çek / Senet Kayıtları (${checks.length} kayıt)`, leftMargin);
+    doc.moveDown(0.4);
+
+    const STATUS_LABELS: Record<string, string> = { pending: "Bekliyor", paid: "Ödendi", bounced: "Karşılıksız" };
+    const KIND_LABELS: Record<string, string> = { check: "Çek", note: "Senet" };
+    const DIR_LABELS: Record<string, string> = { received: "Alınan", given: "Verilen" };
+
+    const checkCols = [
+      { x: leftMargin, w: 55, label: "Tür" },
+      { x: leftMargin + 55, w: 55, label: "Yön" },
+      { x: leftMargin + 110, w: 80, label: "Tutar" },
+      { x: leftMargin + 190, w: 70, label: "Vade Tarihi" },
+      { x: leftMargin + 260, w: 70, label: "Alma Tarihi" },
+      { x: leftMargin + 330, w: 70, label: "Durum" },
+      { x: leftMargin + 400, w: 115, label: "Not" },
+    ];
+
+    let checkY = drawTableHeader(doc, checkCols, doc.y);
+    let checkRow = 0;
+
+    for (const ck of checks) {
+      if (checkY > 720) {
+        doc.addPage();
+        doc.font(FONT_REGULAR);
+        checkY = drawTableHeader(doc, checkCols, 40);
+      }
+
+      const rowH = 20;
+      if (checkRow % 2 === 1) {
+        doc.rect(leftMargin, checkY, pageWidth, rowH).fill(COLORS.bgLight);
+      }
+
+      doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.text);
+      doc.text(KIND_LABELS[ck.kind] || ck.kind, checkCols[0].x + 4, checkY + 6, { width: checkCols[0].w - 8 });
+      doc.text(DIR_LABELS[ck.direction] || ck.direction, checkCols[1].x + 4, checkY + 6, { width: checkCols[1].w - 8 });
+
+      doc.font(FONT_BOLD).fontSize(8);
+      doc.text(formatCurrency(ck.amount), checkCols[2].x + 4, checkY + 6, { width: checkCols[2].w - 8 });
+
+      doc.font(FONT_REGULAR).fontSize(8).fillColor(COLORS.text);
+      doc.text(formatDate(ck.dueDate), checkCols[3].x + 4, checkY + 6, { width: checkCols[3].w - 8 });
+      doc.text(ck.receivedDate ? formatDate(ck.receivedDate) : "-", checkCols[4].x + 4, checkY + 6, { width: checkCols[4].w - 8 });
+
+      const statusColor = ck.status === "paid" ? COLORS.success : ck.status === "bounced" ? COLORS.danger : COLORS.textMuted;
+      doc.font(FONT_BOLD).fontSize(7).fillColor(statusColor);
+      doc.text(STATUS_LABELS[ck.status] || ck.status, checkCols[5].x + 4, checkY + 6, { width: checkCols[5].w - 8 });
+
+      doc.font(FONT_REGULAR).fontSize(7).fillColor(COLORS.textLight);
+      doc.text(ck.notes || "-", checkCols[6].x + 4, checkY + 6, { width: checkCols[6].w - 8, lineBreak: false });
+
+      checkY += rowH;
+      checkRow++;
+    }
+
+    doc.moveTo(leftMargin, checkY).lineTo(rightEdge, checkY).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+    doc.fillColor(COLORS.text);
+  }
 
   const pageCount = doc.bufferedPageRange().count;
   for (let i = 0; i < pageCount; i++) {

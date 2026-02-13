@@ -188,11 +188,12 @@ export async function registerRoutes(
       const party = await storage.getCounterparty(req.params.id);
       if (!party) return res.status(404).json({ message: "Bulunamadı" });
       const { transactions: txs } = await storage.getTransactionsByCounterparty(req.params.id);
+      const checks = await storage.getChecksByCounterparty(req.params.id);
 
       const safeName = party.name.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${safeName}-ekstre.pdf"; filename*=UTF-8''${encodeURIComponent(party.name)}-ekstre.pdf`);
-      const doc = generateCounterpartyPDF(party, txs);
+      const doc = generateCounterpartyPDF(party, txs, checks);
       doc.pipe(res);
       doc.end();
     } catch (e: any) {
@@ -674,7 +675,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Cari bulunamadi" });
       }
       const { transactions } = await storage.getTransactionsByCounterparty(counterpartyId, {});
-      const doc = generateCounterpartyPDF(party, transactions);
+      const whatsappChecks = await storage.getChecksByCounterparty(counterpartyId);
+      const doc = generateCounterpartyPDF(party, transactions, whatsappChecks);
 
       const chunks: Buffer[] = [];
       doc.on("data", (chunk: Buffer) => chunks.push(chunk));
