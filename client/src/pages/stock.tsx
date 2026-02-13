@@ -73,7 +73,7 @@ export default function Stock() {
     queryKey: ["/api/stock", detailProduct?.id, "movements"],
     queryFn: async () => {
       const res = await fetch(`/api/stock/${detailProduct!.id}/movements`);
-      if (!res.ok) throw new Error("Hareketler y\u00fcklenemedi");
+      if (!res.ok) throw new Error("Hareketler yüklenemedi");
       return res.json();
     },
     enabled: !!detailProduct,
@@ -148,7 +148,7 @@ export default function Stock() {
       setAdjustQty("");
       setAdjustNotes("");
       setDetailProduct(null);
-      toast({ title: "Stok g\u00fcncellendi" });
+      toast({ title: "Stok güncellendi" });
     },
     onError: (err: Error) => {
       toast({ title: "Hata", description: err.message, variant: "destructive" });
@@ -699,7 +699,7 @@ export default function Stock() {
                 {movementsError && (
                   <div className="text-center py-8">
                     <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-400" />
-                    <p className="text-sm text-red-500">Hareketler y{"\u00FC"}klenemedi</p>
+                    <p className="text-sm text-red-500">Hareketler y{"ü"}klenemedi</p>
                   </div>
                 )}
 
@@ -721,7 +721,7 @@ export default function Stock() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-700 dark:text-foreground">
-                                  Manuel D{"\u00FC"}zeltme
+                                  Manuel D{"ü"}zeltme
                                 </p>
                                 {adj.notes && (
                                   <p className="text-[10px] text-gray-500 dark:text-muted-foreground truncate">{adj.notes}</p>
@@ -742,7 +742,7 @@ export default function Stock() {
                     {movements.transactions.length > 0 && (
                       <>
                         <p className="text-[10px] font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider mt-3 mb-1">
-                          {"\u0130\u015Flem Hareketleri"}
+                          {"İşlem Hareketleri"}
                         </p>
                         {movements.transactions.map((mv, i) => {
                           const qty = parseFloat(mv.quantity);
@@ -783,7 +783,7 @@ export default function Stock() {
                     {movements.transactions.length === 0 && movements.adjustments.length === 0 && (
                       <div className="text-center py-8">
                         <History className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-muted-foreground" />
-                        <p className="text-sm text-gray-500 dark:text-muted-foreground">Hen{"\u00FC"}z hareket yok</p>
+                        <p className="text-sm text-gray-500 dark:text-muted-foreground">Hen{"ü"}z hareket yok</p>
                       </div>
                     )}
                   </div>
@@ -804,7 +804,7 @@ export default function Stock() {
                   data-testid="button-adjust-from-detail"
                 >
                   <PlusCircle className="w-4 h-4" />
-                  Stok D{"\u00FC"}zelt
+                  Stok D{"ü"}zelt
                 </Button>
               </div>
             </>

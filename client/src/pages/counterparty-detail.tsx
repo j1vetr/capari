@@ -117,7 +117,7 @@ export default function CounterpartyDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "transactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
-      toast({ title: "\u0130\u015Flem d\u00FCzeltildi (ters kay\u0131t olu\u015Fturuldu)" });
+      toast({ title: "İşlem düzeltildi (ters kayıt oluşturuldu)" });
       setConfirmReverse(null);
     },
   });
@@ -133,7 +133,7 @@ export default function CounterpartyDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
-      toast({ title: "\u0130\u015Flem silindi" });
+      toast({ title: "İşlem silindi" });
       setConfirmDeleteTx(null);
     },
     onError: (err: Error) => {
@@ -205,7 +205,7 @@ export default function CounterpartyDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "checks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
-      toast({ title: "Kay\u0131t eklendi" });
+      toast({ title: "Kayıt eklendi" });
       setShowAddCheck(false);
       setCheckAmount("");
       setCheckDueDate("");
@@ -724,7 +724,7 @@ export default function CounterpartyDetail() {
                           data-testid={`button-reverse-${tx.id}`}
                         >
                           <RotateCcw className="w-3 h-3" />
-                          D{"\u00FC"}zelt
+                          D{"ü"}zelt
                         </Button>
                         <Button
                           variant="ghost"
@@ -804,7 +804,7 @@ export default function CounterpartyDetail() {
 
       <div className="flex flex-col gap-2 mt-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">\u00C7ek / Senet</p>
+          <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Çek / Senet</p>
           <Button
             size="sm"
             variant="outline"
@@ -823,7 +823,7 @@ export default function CounterpartyDetail() {
           </div>
         )}
         {checksData && checksData.length === 0 && (
-          <Card><CardContent className="p-4 text-center text-sm text-gray-400 dark:text-muted-foreground">Kay\u0131tl\u0131 \u00E7ek/senet yok</CardContent></Card>
+          <Card><CardContent className="p-4 text-center text-sm text-gray-400 dark:text-muted-foreground">Kayıtlı çek/senet yok</CardContent></Card>
         )}
         {checksData && checksData.length > 0 && (
           <div className="flex flex-col gap-2">
@@ -843,18 +843,18 @@ export default function CounterpartyDetail() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant={ck.kind === "check" ? "default" : "secondary"} className="text-[10px]">
-                            {ck.kind === "check" ? "\u00C7ek" : "Senet"}
+                            {ck.kind === "check" ? "Çek" : "Senet"}
                           </Badge>
                           <Badge variant="outline" className="text-[10px]">
-                            {ck.direction === "received" ? "Al\u0131nan" : "Verilen"}
+                            {ck.direction === "received" ? "Alınan" : "Verilen"}
                           </Badge>
                           {isPending && (
                             <Badge variant={isOverdue ? "destructive" : "secondary"} className="text-[10px]">
-                              {isOverdue ? `${Math.abs(daysLeft)} g\u00FCn ge\u00E7ti` : daysLeft === 0 ? "Bug\u00FCn" : `${daysLeft} g\u00FCn`}
+                              {isOverdue ? `${Math.abs(daysLeft)} gün geçti` : daysLeft === 0 ? "Bugün" : `${daysLeft} gün`}
                             </Badge>
                           )}
-                          {isPaid && <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">\u00D6dendi</Badge>}
-                          {isBounced && <Badge variant="destructive" className="text-[10px]">Kar\u015F\u0131l\u0131ks.</Badge>}
+                          {isPaid && <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Ödendi</Badge>}
+                          {isBounced && <Badge variant="destructive" className="text-[10px]">Karşılıks.</Badge>}
                         </div>
                         <p className="text-sm font-semibold mt-1">{formatCurrency(ck.amount)}</p>
                         <p className="text-xs text-gray-500 dark:text-muted-foreground">Vade: {formatDate(ck.dueDate)}</p>
@@ -872,7 +872,7 @@ export default function CounterpartyDetail() {
                             data-testid={`button-check-paid-${ck.id}`}
                           >
                             <Check className="w-3 h-3 mr-0.5" />
-                            \u00D6dendi
+                            Ödendi
                           </Button>
                           <Button
                             size="sm"
@@ -883,7 +883,7 @@ export default function CounterpartyDetail() {
                             data-testid={`button-check-bounced-${ck.id}`}
                           >
                             <AlertCircle className="w-3 h-3 mr-0.5" />
-                            Kar\u015F\u0131l\u0131ks.
+                            Karşılıks.
                           </Button>
                         </div>
                       )}
@@ -899,12 +899,12 @@ export default function CounterpartyDetail() {
       <Dialog open={showAddCheck} onOpenChange={setShowAddCheck}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>\u00C7ek/Senet Ekle</DialogTitle>
-            <DialogDescription>{party?.name} i\u00E7in yeni \u00E7ek veya senet kayd\u0131</DialogDescription>
+            <DialogTitle>Çek/Senet Ekle</DialogTitle>
+            <DialogDescription>{party?.name} için yeni çek veya senet kaydı</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 mt-2">
             <div>
-              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">T\u00FCr</Label>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Tür</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -913,7 +913,7 @@ export default function CounterpartyDetail() {
                   data-testid="button-kind-check"
                 >
                   <FileText className="w-4 h-4 mx-auto mb-1" />
-                  \u00C7ek
+                  Çek
                 </button>
                 <button
                   type="button"
@@ -927,7 +927,7 @@ export default function CounterpartyDetail() {
               </div>
             </div>
             <div>
-              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Y\u00F6n</Label>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Yön</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -936,7 +936,7 @@ export default function CounterpartyDetail() {
                   data-testid="button-direction-received"
                 >
                   <ArrowDownToLine className="w-4 h-4 mx-auto mb-1" />
-                  Al\u0131nan
+                  Alınan
                 </button>
                 <button
                   type="button"
@@ -1260,15 +1260,15 @@ export default function CounterpartyDetail() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trash2 className="w-5 h-5 text-red-500" />
-              {"\u0130\u015Flemi Sil"}
+              {"İşlemi Sil"}
             </DialogTitle>
             <DialogDescription>
-              {"Bu i\u015Flem tamamen silinecek. E\u011Fer bu i\u015Flemin d\u00FCzeltmesi varsa o da silinecek. Bu i\u015Flem geri al\u0131namaz."}
+              {"Bu işlem tamamen silinecek. Eğer bu işlemin düzeltmesi varsa o da silinecek. Bu işlem geri alınamaz."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mt-2">
             <Button variant="outline" className="flex-1" onClick={() => setConfirmDeleteTx(null)}>
-              {"Vazge\u00E7"}
+              {"Vazgeç"}
             </Button>
             <Button
               variant="destructive"
@@ -1277,7 +1277,7 @@ export default function CounterpartyDetail() {
               disabled={deleteTxMutation.isPending}
               data-testid="button-confirm-delete-tx"
             >
-              {deleteTxMutation.isPending ? "\u0130\u015Fleniyor..." : "Sil"}
+              {deleteTxMutation.isPending ? "İşleniyor..." : "Sil"}
             </Button>
           </div>
         </DialogContent>
