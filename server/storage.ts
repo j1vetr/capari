@@ -266,11 +266,21 @@ export class DatabaseStorage implements IStorage {
     const today = new Date().toISOString().split("T")[0];
 
     const totalsResult = await db.execute(sql`
+      WITH balances AS (
+        SELECT c.id, c.type,
+          CASE
+            WHEN c.type = 'customer' THEN
+              COALESCE(SUM(CASE WHEN t.tx_type='sale' THEN t.amount WHEN t.tx_type='collection' THEN -t.amount WHEN t.tx_type='purchase' THEN -t.amount WHEN t.tx_type='payment' THEN t.amount ELSE 0 END), 0)
+            ELSE
+              COALESCE(SUM(CASE WHEN t.tx_type='purchase' THEN t.amount WHEN t.tx_type='payment' THEN -t.amount WHEN t.tx_type='sale' THEN -t.amount WHEN t.tx_type='collection' THEN t.amount ELSE 0 END), 0)
+          END as balance
+        FROM counterparties c
+        LEFT JOIN transactions t ON t.counterparty_id = c.id
+        GROUP BY c.id, c.type
+      )
       SELECT
-        COALESCE((SELECT SUM(CASE WHEN t.tx_type='sale' THEN t.amount WHEN t.tx_type='collection' THEN -t.amount WHEN t.tx_type='purchase' THEN -t.amount WHEN t.tx_type='payment' THEN t.amount ELSE 0 END)
-          FROM transactions t JOIN counterparties c ON c.id=t.counterparty_id WHERE c.type='customer'), 0) as total_receivables,
-        COALESCE((SELECT SUM(CASE WHEN t.tx_type='purchase' THEN t.amount WHEN t.tx_type='payment' THEN -t.amount WHEN t.tx_type='sale' THEN -t.amount WHEN t.tx_type='collection' THEN t.amount ELSE 0 END)
-          FROM transactions t JOIN counterparties c ON c.id=t.counterparty_id WHERE c.type='supplier'), 0) as total_payables,
+        COALESCE((SELECT SUM(balance) FROM balances WHERE balance > 0), 0) as total_receivables,
+        COALESCE((SELECT SUM(ABS(balance)) FROM balances WHERE balance < 0), 0) as total_payables,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='sale' AND tx_date=${today}), 0) as today_sales,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='collection' AND tx_date=${today}), 0) as today_collections,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='purchase' AND tx_date=${today}), 0) as today_purchases,

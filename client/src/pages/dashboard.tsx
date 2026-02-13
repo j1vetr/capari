@@ -109,8 +109,8 @@ export default function Dashboard() {
     <div className="flex flex-col gap-4 p-4 pb-24 max-w-lg mx-auto">
       <div className="flex items-end justify-between gap-2">
         <div>
-          <p className="text-xs font-medium text-gray-400 dark:text-muted-foreground uppercase tracking-wider mb-0.5">Genel Bakış</p>
-          <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-foreground">Bugünkü Durum</h2>
+          <p className="text-xs font-medium text-gray-400 dark:text-muted-foreground uppercase tracking-wider mb-0.5">Çapari Balık</p>
+          <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-foreground">Ana Sayfa</h2>
         </div>
         <div className="flex items-center gap-1.5 text-gray-400 dark:text-muted-foreground">
           <CalendarDays className="w-3.5 h-3.5" />
@@ -179,29 +179,32 @@ export default function Dashboard() {
         );
       })()}
 
-      <div className="flex gap-3">
-        <StatCardLarge
-          title="Toplam Alacak"
-          value={data?.totalReceivables || "0"}
-          subtitle="Müşteriler"
-          icon={TrendingUp}
-          bgClass="bg-emerald-50 dark:bg-emerald-950/30"
-          iconClass="text-emerald-600 dark:text-emerald-400"
-          isLoading={isLoading}
-        />
-        <StatCardLarge
-          title="Toplam Borç"
-          value={data?.totalPayables || "0"}
-          subtitle="Tedarikçiler"
-          icon={TrendingDown}
-          bgClass="bg-rose-50 dark:bg-rose-950/30"
-          iconClass="text-rose-600 dark:text-rose-400"
-          isLoading={isLoading}
-        />
+      <div>
+        <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider mb-2">Genel</p>
+        <div className="flex gap-3">
+          <StatCardLarge
+            title="Toplam Alacak"
+            value={data?.totalReceivables || "0"}
+            subtitle="Carilerden"
+            icon={TrendingUp}
+            bgClass="bg-emerald-50 dark:bg-emerald-950/30"
+            iconClass="text-emerald-600 dark:text-emerald-400"
+            isLoading={isLoading}
+          />
+          <StatCardLarge
+            title="Toplam Borç"
+            value={data?.totalPayables || "0"}
+            subtitle="Carilerden"
+            icon={TrendingDown}
+            bgClass="bg-rose-50 dark:bg-rose-950/30"
+            iconClass="text-rose-600 dark:text-rose-400"
+            isLoading={isLoading}
+          />
+        </div>
       </div>
 
       <div>
-        <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider mb-2">Bugünkü Hareketler</p>
+        <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider mb-2">Bugün</p>
         <div className="grid grid-cols-2 gap-2">
           <StatCardSmall
             title="Satış"
