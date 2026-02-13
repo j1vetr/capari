@@ -755,8 +755,8 @@ export default function CounterpartyDetail() {
                       <span className={`text-sm font-bold ${isReversed ? "line-through text-gray-400 dark:text-muted-foreground" : "text-gray-900 dark:text-foreground"}`}>
                         {formatCurrency(tx.amount)}
                       </span>
-                      {!isReversal && !isReversed && (
-                        <div className="flex gap-0.5">
+                      <div className="flex gap-0.5">
+                        {!isReversal && !isReversed && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -768,19 +768,19 @@ export default function CounterpartyDetail() {
                             <RotateCcw className="w-3 h-3" />
                             D{"ü"}zelt
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-[10px] gap-1 text-red-400 dark:text-red-400 px-1.5"
-                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteTx(tx.id); }}
-                            disabled={deleteTxMutation.isPending}
-                            data-testid={`button-delete-tx-${tx.id}`}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            Sil
-                          </Button>
-                        </div>
-                      )}
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1 text-red-400 dark:text-red-400 px-1.5"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteTx(tx.id); }}
+                          disabled={deleteTxMutation.isPending}
+                          data-testid={`button-delete-tx-${tx.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Sil
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
