@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -26,20 +27,6 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import type { CounterpartyWithBalance } from "@shared/schema";
 
-type CheckEntry = {
-  id: number;
-  kind: "check" | "note";
-  direction: "received" | "given";
-  amount: string;
-  dueDate: string;
-  receivedDate: string;
-  notes: string;
-};
-
-let nextCheckId = 1;
-function emptyCheckEntry(): CheckEntry {
-  return { id: nextCheckId++, kind: "check", direction: "received", amount: "", dueDate: "", receivedDate: "", notes: "" };
-}
 
 export default function Counterparties() {
   const [, navigate] = useLocation();
@@ -58,8 +45,9 @@ export default function Counterparties() {
   const [showBulkChecks, setShowBulkChecks] = useState(false);
   const [bulkCheckType, setBulkCheckType] = useState<"customer" | "supplier">("customer");
   const [bulkCheckPartyId, setBulkCheckPartyId] = useState<string>("");
-  const [checkEntries, setCheckEntries] = useState<CheckEntry[]>([emptyCheckEntry()]);
+  const [bulkCheckText, setBulkCheckText] = useState("");
   const [checkSaving, setCheckSaving] = useState(false);
+  const [checkImportResult, setCheckImportResult] = useState<{ added: number; errors: number } | null>(null);
 
   const { data: parties, isLoading } = useQuery<CounterpartyWithBalance[]>({
     queryKey: ["/api/counterparties"],
@@ -143,38 +131,67 @@ export default function Counterparties() {
     bulkMutation.mutate({ counterpartyId: bulkPartyId, transactions: parsed });
   };
 
-  const addCheckEntry = () => {
-    const last = checkEntries[checkEntries.length - 1];
-    setCheckEntries([...checkEntries, { ...emptyCheckEntry(), kind: last.kind, direction: last.direction }]);
+  const parseBulkChecks = (text: string) => {
+    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    const results: { amount: number; kind: "check" | "note"; direction: "received" | "given"; dueDate: string; receivedDate?: string; notes?: string }[] = [];
+    for (const line of lines) {
+      const parts = line.split(/[,\t]/).map(p => p.trim());
+      const amountStr = parts[0] || "";
+      const amount = parseFloat(amountStr.replace(/\./g, "").replace(",", "."));
+      if (isNaN(amount) || amount <= 0) continue;
+
+      const kindStr = (parts[1] || "cek").toLowerCase();
+      const kind: "check" | "note" = (kindStr.startsWith("s") || kindStr === "senet") ? "note" : "check";
+
+      const dirStr = (parts[2] || "alinan").toLowerCase();
+      const direction: "received" | "given" = (dirStr.startsWith("v") || dirStr === "verilen" || dirStr === "given") ? "given" : "received";
+
+      const dueDateStr = parts[3] || "";
+      let dueDate = "";
+      const dotMatch = dueDateStr.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+      const isoMatch = dueDateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (dotMatch) {
+        dueDate = `${dotMatch[3]}-${dotMatch[2].padStart(2, "0")}-${dotMatch[1].padStart(2, "0")}`;
+      } else if (isoMatch) {
+        dueDate = dueDateStr;
+      }
+      if (!dueDate) continue;
+
+      let receivedDate: string | undefined;
+      const recStr = parts[4] || "";
+      if (recStr) {
+        const rDot = recStr.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+        const rIso = recStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (rDot) receivedDate = `${rDot[3]}-${rDot[2].padStart(2, "0")}-${rDot[1].padStart(2, "0")}`;
+        else if (rIso) receivedDate = recStr;
+      }
+
+      const notes = parts[5]?.trim() || undefined;
+      results.push({ amount, kind, direction, dueDate, receivedDate, notes });
+    }
+    return results;
   };
 
-  const removeCheckEntry = (id: number) => {
-    if (checkEntries.length <= 1) return;
-    setCheckEntries(checkEntries.filter(e => e.id !== id));
-  };
-
-  const updateCheckEntry = (id: number, field: keyof CheckEntry, value: string) => {
-    setCheckEntries(checkEntries.map(e => e.id === id ? { ...e, [field]: value } : e));
-  };
-
-  const checkTotalAmount = checkEntries.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
-  const validCheckEntries = checkEntries.filter(e => parseFloat(e.amount) > 0 && e.dueDate);
+  const parsedBulkChecks = bulkCheckText.trim() ? parseBulkChecks(bulkCheckText) : [];
+  const bulkCheckTotal = parsedBulkChecks.reduce((s, e) => s + e.amount, 0);
 
   const handleSaveChecks = async () => {
     if (!bulkCheckPartyId) return;
-    if (validCheckEntries.length === 0) {
-      toast({ title: "En az bir geçerli kayıt girin", variant: "destructive" });
+    if (parsedBulkChecks.length === 0) {
+      toast({ title: "Gecerli kayit bulunamadi", variant: "destructive" });
       return;
     }
     setCheckSaving(true);
+    setCheckImportResult(null);
     let successCount = 0;
-    for (const e of validCheckEntries) {
+    let errorCount = 0;
+    for (const e of parsedBulkChecks) {
       try {
         await apiRequest("POST", "/api/checks", {
           counterpartyId: bulkCheckPartyId,
           kind: e.kind,
           direction: e.direction,
-          amount: parseFloat(e.amount).toFixed(2),
+          amount: e.amount.toFixed(2),
           dueDate: e.dueDate,
           receivedDate: e.receivedDate || null,
           status: "pending",
@@ -182,19 +199,20 @@ export default function Counterparties() {
         });
         successCount++;
       } catch (err: any) {
-        toast({ title: "Hata", description: err.message, variant: "destructive" });
+        errorCount++;
       }
     }
     setCheckSaving(false);
+    setCheckImportResult({ added: successCount, errors: errorCount });
     if (successCount > 0) {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", bulkCheckPartyId, "checks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
-      toast({ title: `${successCount} kayıt eklendi` });
-      setCheckEntries([emptyCheckEntry()]);
-      setBulkCheckPartyId("");
-      setShowBulkChecks(false);
+      toast({ title: `${successCount} kayıt eklendi`, description: errorCount > 0 ? `${errorCount} hata oluştu` : undefined });
+    }
+    if (errorCount > 0 && successCount === 0) {
+      toast({ title: "Hata", description: "Kayıtlar eklenemedi", variant: "destructive" });
     }
   };
 
@@ -210,7 +228,7 @@ export default function Counterparties() {
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => { setShowBulkChecks(true); setBulkCheckType(tab); setBulkCheckPartyId(""); setCheckEntries([emptyCheckEntry()]); }}
+            onClick={() => { setShowBulkChecks(true); setBulkCheckType(tab); setBulkCheckPartyId(""); setBulkCheckText(""); setCheckImportResult(null); }}
             data-testid="button-bulk-checks"
           >
             <FileText className="w-4 h-4" />
@@ -576,133 +594,77 @@ export default function Counterparties() {
 
             {bulkCheckPartyId && (
               <>
-                <div className="flex flex-col gap-3">
-                  {checkEntries.map((entry, idx) => (
-                    <Card key={entry.id}>
-                      <CardContent className="p-3">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <Badge variant="outline" className="text-[10px]">#{idx + 1}</Badge>
-                          {checkEntries.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeCheckEntry(entry.id)}
-                              data-testid={`button-remove-check-entry-${entry.id}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                            </Button>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 mb-2">
-                          <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Tür</Label>
-                            <Select value={entry.kind} onValueChange={(v) => updateCheckEntry(entry.id, "kind", v)}>
-                              <SelectTrigger className="h-8 text-xs" data-testid={`select-check-kind-${entry.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="check">Çek</SelectItem>
-                                <SelectItem value="note">Senet</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Yön</Label>
-                            <Select value={entry.direction} onValueChange={(v) => updateCheckEntry(entry.id, "direction", v)}>
-                              <SelectTrigger className="h-8 text-xs" data-testid={`select-check-direction-${entry.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="received">Alınan</SelectItem>
-                                <SelectItem value="given">Verilen</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 mb-2">
-                          <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Tutar</Label>
-                            <Input
-                              type="number"
-                              inputMode="decimal"
-                              value={entry.amount}
-                              onChange={(e) => updateCheckEntry(entry.id, "amount", e.target.value)}
-                              placeholder="0.00"
-                              className="h-8 text-xs"
-                              data-testid={`input-check-amount-${entry.id}`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Vade Tarihi</Label>
-                            <Input
-                              type="date"
-                              value={entry.dueDate}
-                              onChange={(e) => updateCheckEntry(entry.id, "dueDate", e.target.value)}
-                              className="h-8 text-xs"
-                              data-testid={`input-check-due-date-${entry.id}`}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 mb-2">
-                          <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Alma Tarihi</Label>
-                            <Input
-                              type="date"
-                              value={entry.receivedDate}
-                              onChange={(e) => updateCheckEntry(entry.id, "receivedDate", e.target.value)}
-                              className="h-8 text-xs"
-                              data-testid={`input-check-received-date-${entry.id}`}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-[10px] text-gray-500 dark:text-muted-foreground mb-1 block">Not (opsiyonel)</Label>
-                            <Input
-                              value={entry.notes}
-                              onChange={(e) => updateCheckEntry(entry.id, "notes", e.target.value)}
-                              placeholder="Banka, seri no vs."
-                              className="h-8 text-xs"
-                              data-testid={`input-check-notes-${entry.id}`}
-                            />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <Button variant="outline" className="w-full" onClick={addCheckEntry} data-testid="button-add-check-entry">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Satır Ekle
-                </Button>
-
                 <Card className="bg-gray-50 dark:bg-muted/30 border-0">
                   <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-muted-foreground">Toplam</p>
-                        <p className="text-lg font-bold text-gray-900 dark:text-foreground">{formatCurrency(checkTotalAmount)}</p>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">{validCheckEntries.length} geçerli kayıt</Badge>
-                    </div>
+                    <p className="text-xs font-semibold text-gray-600 dark:text-muted-foreground mb-1">Format (her satıra bir kayıt):</p>
+                    <p className="text-[11px] text-gray-500 dark:text-muted-foreground font-mono leading-relaxed">
+                      tutar, çek/senet, alınan/verilen, vade tarihi, alma tarihi, not
+                    </p>
+                    <Separator className="my-2" />
+                    <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                      Örnek: 5000, çek, alınan, 15.03.2026, 01.02.2026, Garanti
+                    </p>
+                    <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
+                      Örnek: 12000, senet, verilen, 20.04.2026
+                    </p>
+                    <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">
+                      Alma tarihi ve not opsiyonel. Tarihler: GG.AA.YYYY veya GG/AA/YYYY
+                    </p>
                   </CardContent>
                 </Card>
+
+                <Textarea
+                  className="min-h-[150px] text-xs font-mono"
+                  placeholder={"5000, çek, alınan, 15.03.2026, 01.02.2026, Garanti\n12000, senet, verilen, 20.04.2026\n8500, çek, alınan, 10.05.2026, , Yapı Kredi"}
+                  value={bulkCheckText}
+                  onChange={(e) => { setBulkCheckText(e.target.value); setCheckImportResult(null); }}
+                  data-testid="textarea-bulk-checks"
+                />
+
+                {bulkCheckText.trim() && (
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="secondary" className="text-xs">{parsedBulkChecks.length} kayıt algılandı</Badge>
+                    {parsedBulkChecks.length > 0 && (
+                      <p className="text-sm font-semibold text-gray-700 dark:text-foreground">{formatCurrency(bulkCheckTotal)}</p>
+                    )}
+                  </div>
+                )}
+
+                {checkImportResult && (
+                  <Card className={checkImportResult.errors > 0 ? "border-amber-300 dark:border-amber-700" : "border-emerald-300 dark:border-emerald-700"}>
+                    <CardContent className="p-3">
+                      <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{checkImportResult.added} kayıt eklendi</p>
+                      {checkImportResult.errors > 0 && (
+                        <p className="text-xs text-red-600 dark:text-red-400">{checkImportResult.errors} hata oluştu</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 <Button
                   className="w-full"
                   onClick={handleSaveChecks}
-                  disabled={checkSaving || validCheckEntries.length === 0}
+                  disabled={checkSaving || parsedBulkChecks.length === 0}
                   data-testid="button-save-all-checks"
                 >
                   {checkSaving ? "Kaydediliyor..." : (
                     <>
                       <Check className="w-4 h-4 mr-1" />
-                      {validCheckEntries.length} Kayıdı Ekle
+                      {parsedBulkChecks.length} Kayıt Ekle
                     </>
                   )}
                 </Button>
+
+                {checkImportResult && checkImportResult.added > 0 && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => { setBulkCheckText(""); setCheckImportResult(null); }}
+                    data-testid="button-clear-bulk-checks"
+                  >
+                    Temizle
+                  </Button>
+                )}
               </>
             )}
           </div>
