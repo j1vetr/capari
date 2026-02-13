@@ -18,6 +18,7 @@ import Counterparties from "@/pages/counterparties";
 import CounterpartyDetail from "@/pages/counterparty-detail";
 import Reports from "@/pages/reports";
 import Stock from "@/pages/stock";
+import BulkChecks from "@/pages/bulk-checks";
 import Login from "@/pages/login";
 
 const NAV_ITEMS = [
@@ -67,6 +68,7 @@ function Router() {
       <Route path="/cariler" component={Counterparties} />
       <Route path="/cariler/:id" component={CounterpartyDetail} />
       <Route path="/stok" component={Stock} />
+      <Route path="/toplu-cek" component={BulkChecks} />
       <Route path="/raporlar" component={Reports} />
       <Route component={NotFound} />
     </Switch>

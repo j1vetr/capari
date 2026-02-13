@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   TrendingUp, TrendingDown, ShoppingCart, ArrowDownToLine,
   Banknote, ArrowUpFromLine, Plus, ChevronRight, CalendarDays, Users,
-  Crown, AlertTriangle, Clock, BarChart3, Store, Truck
+  Crown, AlertTriangle, Clock, BarChart3, Store, Truck, FileText
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg } from "@/lib/formatters";
 import type { DashboardSummary, StatsData, TransactionWithCounterparty, CheckNoteWithCounterparty } from "@shared/schema";
@@ -283,10 +283,14 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Button variant="outline" className="h-11 gap-1.5 text-xs font-semibold" onClick={() => navigate("/islem-ekle")} data-testid="button-quick-tx">
           <Plus className="w-4 h-4" />
-          Hızlı İşlem
+          H\u0131zl\u0131 \u0130\u015Flem
+        </Button>
+        <Button variant="outline" className="h-11 gap-1.5 text-xs font-semibold" onClick={() => navigate("/toplu-cek")} data-testid="button-bulk-checks">
+          <FileText className="w-4 h-4" />
+          Toplu \u00C7ek/Senet
         </Button>
       </div>
 
