@@ -18,6 +18,7 @@ export interface IStorage {
   createTransaction(data: InsertTransaction): Promise<Transaction>;
   getTransaction(id: string): Promise<Transaction | undefined>;
   reverseTransaction(id: string): Promise<Transaction>;
+  deleteTransaction(id: string): Promise<void>;
 
   getStats(): Promise<StatsData>;
   updateCounterparty(id: string, data: Partial<InsertCounterparty>): Promise<CounterpartyWithBalance>;
@@ -177,6 +178,18 @@ export class DatabaseStorage implements IStorage {
     }
 
     return reversed;
+  }
+
+  async deleteTransaction(id: string): Promise<void> {
+    const tx = await this.getTransaction(id);
+    if (!tx) throw new Error("İşlem bulunamadı");
+    await db.delete(transactionItems).where(eq(transactionItems.transactionId, id));
+    const reversals = await db.select({ id: transactions.id }).from(transactions).where(eq(transactions.reversedOf, id));
+    for (const rev of reversals) {
+      await db.delete(transactionItems).where(eq(transactionItems.transactionId, rev.id));
+      await db.delete(transactions).where(eq(transactions.id, rev.id));
+    }
+    await db.delete(transactions).where(eq(transactions.id, id));
   }
 
   async updateCounterparty(id: string, data: Partial<InsertCounterparty>): Promise<CounterpartyWithBalance> {

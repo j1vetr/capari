@@ -49,6 +49,7 @@ export default function CounterpartyDetail() {
   const [txPage, setTxPage] = useState(0);
   const TX_PAGE_SIZE = 20;
   const [confirmReverse, setConfirmReverse] = useState<string | null>(null);
+  const [confirmDeleteTx, setConfirmDeleteTx] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
   const [editingDueDay, setEditingDueDay] = useState(false);
@@ -109,8 +110,27 @@ export default function CounterpartyDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "transactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
-      toast({ title: "İşlem düzeltildi (ters kayıt oluşturuldu)" });
+      toast({ title: "\u0130\u015Flem d\u00FCzeltildi (ters kay\u0131t olu\u015Fturuldu)" });
       setConfirmReverse(null);
+    },
+  });
+
+  const deleteTxMutation = useMutation({
+    mutationFn: async (txId: string) => {
+      const res = await apiRequest("DELETE", `/api/transactions/${txId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
+      toast({ title: "\u0130\u015Flem silindi" });
+      setConfirmDeleteTx(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
     },
   });
 
@@ -643,17 +663,30 @@ export default function CounterpartyDetail() {
                       {formatCurrency(tx.amount)}
                     </span>
                     {!isReversal && !isReversed && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-[10px] gap-1 text-gray-400 dark:text-muted-foreground px-1.5"
-                        onClick={(e) => { e.stopPropagation(); setConfirmReverse(tx.id); }}
-                        disabled={reverseMutation.isPending}
-                        data-testid={`button-reverse-${tx.id}`}
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        Düzelt
-                      </Button>
+                      <div className="flex gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1 text-gray-400 dark:text-muted-foreground px-1.5"
+                          onClick={(e) => { e.stopPropagation(); setConfirmReverse(tx.id); }}
+                          disabled={reverseMutation.isPending}
+                          data-testid={`button-reverse-${tx.id}`}
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          D{"\u00FC"}zelt
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1 text-red-400 dark:text-red-400 px-1.5"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteTx(tx.id); }}
+                          disabled={deleteTxMutation.isPending}
+                          data-testid={`button-delete-tx-${tx.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Sil
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -949,6 +982,34 @@ export default function CounterpartyDetail() {
               disabled={reverseMutation.isPending}
             >
               {reverseMutation.isPending ? "İşleniyor..." : "Düzelt"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmDeleteTx} onOpenChange={() => setConfirmDeleteTx(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-500" />
+              {"\u0130\u015Flemi Sil"}
+            </DialogTitle>
+            <DialogDescription>
+              {"Bu i\u015Flem tamamen silinecek. E\u011Fer bu i\u015Flemin d\u00FCzeltmesi varsa o da silinecek. Bu i\u015Flem geri al\u0131namaz."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 mt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmDeleteTx(null)}>
+              {"Vazge\u00E7"}
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => confirmDeleteTx && deleteTxMutation.mutate(confirmDeleteTx)}
+              disabled={deleteTxMutation.isPending}
+              data-testid="button-confirm-delete-tx"
+            >
+              {deleteTxMutation.isPending ? "\u0130\u015Fleniyor..." : "Sil"}
             </Button>
           </div>
         </DialogContent>

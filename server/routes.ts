@@ -276,6 +276,15 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/transactions/:id", async (req, res) => {
+    try {
+      await storage.deleteTransaction(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/recent-transactions", async (req, res) => {
     try {
       const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
