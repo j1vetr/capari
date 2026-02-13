@@ -11,7 +11,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - **PWA**: manifest.json + apple-mobile-web-app meta tags for installability
 
 ## Project Structure
-- `shared/schema.ts` - Drizzle schema: counterparties, transactions, products, transaction_items tables + TypeScript types
+- `shared/schema.ts` - Drizzle schema: counterparties, transactions, products, transaction_items, checks_notes tables + TypeScript types
 - `server/db.ts` - Database connection pool
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
 - `server/routes.ts` - Express API routes
@@ -41,6 +41,7 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - **products**: id (uuid), name, unit (kg|kasa|adet), is_active (boolean)
 - **transaction_items**: id (uuid), transaction_id (fk), product_id (fk), quantity (numeric 10,2), unit_price (numeric 10,2 nullable)
 - **stock_adjustments**: id (uuid), product_id (fk), quantity (numeric 10,2), notes (text nullable)
+- **checks_notes**: id (uuid), counterparty_id (fk), kind (check|note), direction (received|given), amount (numeric 12,2), due_date (date), status (pending|paid|bounced), notes (text nullable), transaction_id (uuid nullable), reversal_transaction_id (uuid nullable)
 
 ## Business Rules
 - Customer balance = sum(sale) - sum(collection) → positive = customer owes us
@@ -89,6 +90,10 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - POST /api/whatsapp/send - Send WhatsApp text message via wpileti API
 - POST /api/whatsapp/send-pdf - Generate counterparty PDF and send via WhatsApp SendMedia API (requires counterpartyId, receiver)
 - GET /api/temp-pdf/:token - One-time temporary PDF download (used by WhatsApp API, crypto token, 3 min expiry)
+- GET /api/counterparties/:id/checks - List checks/notes for counterparty
+- POST /api/checks - Create check/note record
+- PATCH /api/checks/:id/status - Update check status (paid/bounced)
+- GET /api/checks/upcoming - Upcoming/overdue checks (days query param)
 - POST /api/admin/reset - Reset all data (requires confirm: "SIFIRLA")
 
 ## Running

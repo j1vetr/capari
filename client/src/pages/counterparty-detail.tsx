@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems, todayISO } from "@/lib/formatters";
 import { ChevronDown, Fish } from "lucide-react";
-import type { CounterpartyWithBalance, Transaction } from "@shared/schema";
+import type { CounterpartyWithBalance, Transaction, CheckNote } from "@shared/schema";
 
 type LineItem = {
   id: number;
@@ -57,6 +57,12 @@ export default function CounterpartyDetail() {
   const [editingInfo, setEditingInfo] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [showAddCheck, setShowAddCheck] = useState(false);
+  const [checkKind, setCheckKind] = useState<"check" | "note">("check");
+  const [checkDirection, setCheckDirection] = useState<"received" | "given">("received");
+  const [checkAmount, setCheckAmount] = useState("");
+  const [checkDueDate, setCheckDueDate] = useState("");
+  const [checkNotes, setCheckNotes] = useState("");
 
   const { data: party, isLoading: partyLoading } = useQuery<CounterpartyWithBalance>({
     queryKey: ["/api/counterparties", params.id],
@@ -178,6 +184,49 @@ export default function CounterpartyDetail() {
     },
     onError: (err: Error) => {
       toast({ title: "Silinemedi", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const { data: checksData, isLoading: checksLoading } = useQuery<CheckNote[]>({
+    queryKey: ["/api/counterparties", params.id, "checks"],
+    queryFn: async () => {
+      const res = await fetch(`/api/counterparties/${params.id}/checks`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load checks");
+      return res.json();
+    },
+  });
+
+  const createCheckMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/checks", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "checks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
+      toast({ title: "Kayit eklendi" });
+      setShowAddCheck(false);
+      setCheckAmount("");
+      setCheckDueDate("");
+      setCheckNotes("");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateCheckStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "paid" | "bounced" }) => {
+      const res = await apiRequest("PATCH", `/api/checks/${id}/status`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparties", params.id, "checks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/checks/upcoming"] });
+      toast({ title: "Durum guncellendi" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
     },
   });
 
@@ -750,6 +799,212 @@ export default function CounterpartyDetail() {
           </div>
         )}
       </div>
+
+      <div className="flex flex-col gap-2 mt-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">Cek / Senet</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowAddCheck(true)}
+            data-testid="button-add-check"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Ekle
+          </Button>
+        </div>
+        {checksLoading && (
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Card key={i}><CardContent className="p-3"><Skeleton className="h-12 w-full" /></CardContent></Card>
+            ))}
+          </div>
+        )}
+        {checksData && checksData.length === 0 && (
+          <Card><CardContent className="p-4 text-center text-sm text-gray-400 dark:text-muted-foreground">Kayitli cek/senet yok</CardContent></Card>
+        )}
+        {checksData && checksData.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {checksData.map((ck) => {
+              const isPending = ck.status === "pending";
+              const isPaid = ck.status === "paid";
+              const isBounced = ck.status === "bounced";
+              const dueDate = new Date(ck.dueDate);
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              const isOverdue = isPending && dueDate < today;
+              const daysLeft = Math.ceil((dueDate.getTime() - today.getTime()) / (1000*60*60*24));
+              return (
+                <Card key={ck.id} className={isOverdue ? "border-red-300 dark:border-red-700" : ""}>
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant={ck.kind === "check" ? "default" : "secondary"} className="text-[10px]">
+                            {ck.kind === "check" ? "Cek" : "Senet"}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            {ck.direction === "received" ? "Alinan" : "Verilen"}
+                          </Badge>
+                          {isPending && (
+                            <Badge variant={isOverdue ? "destructive" : "secondary"} className="text-[10px]">
+                              {isOverdue ? `${Math.abs(daysLeft)} gun gecti` : daysLeft === 0 ? "Bugun" : `${daysLeft} gun`}
+                            </Badge>
+                          )}
+                          {isPaid && <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Odendi</Badge>}
+                          {isBounced && <Badge variant="destructive" className="text-[10px]">Karsiliks.</Badge>}
+                        </div>
+                        <p className="text-sm font-semibold mt-1">{formatCurrency(ck.amount)}</p>
+                        <p className="text-xs text-gray-500 dark:text-muted-foreground">Vade: {formatDate(ck.dueDate)}</p>
+                        {ck.notes && <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{ck.notes}</p>}
+                      </div>
+                      {isPending && (
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7 px-2 text-emerald-600 dark:text-emerald-400"
+                            onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "paid" })}
+                            disabled={updateCheckStatusMutation.isPending}
+                            data-testid={`button-check-paid-${ck.id}`}
+                          >
+                            <Check className="w-3 h-3 mr-0.5" />
+                            Odendi
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7 px-2 text-red-600 dark:text-red-400"
+                            onClick={() => updateCheckStatusMutation.mutate({ id: ck.id, status: "bounced" })}
+                            disabled={updateCheckStatusMutation.isPending}
+                            data-testid={`button-check-bounced-${ck.id}`}
+                          >
+                            <AlertCircle className="w-3 h-3 mr-0.5" />
+                            Karsiliks.
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={showAddCheck} onOpenChange={setShowAddCheck}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cek/Senet Ekle</DialogTitle>
+            <DialogDescription>{party?.name} icin yeni cek veya senet kaydi</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <div>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Tur</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCheckKind("check")}
+                  className={`p-3 rounded-md border text-sm font-medium transition-colors ${checkKind === "check" ? "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950/30 dark:border-blue-600 dark:text-blue-400" : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"}`}
+                  data-testid="button-kind-check"
+                >
+                  <FileText className="w-4 h-4 mx-auto mb-1" />
+                  Cek
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckKind("note")}
+                  className={`p-3 rounded-md border text-sm font-medium transition-colors ${checkKind === "note" ? "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950/30 dark:border-blue-600 dark:text-blue-400" : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"}`}
+                  data-testid="button-kind-note"
+                >
+                  <Banknote className="w-4 h-4 mx-auto mb-1" />
+                  Senet
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider mb-2 block">Yon</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCheckDirection("received")}
+                  className={`p-3 rounded-md border text-sm font-medium transition-colors ${checkDirection === "received" ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-600 dark:text-emerald-400" : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"}`}
+                  data-testid="button-direction-received"
+                >
+                  <ArrowDownToLine className="w-4 h-4 mx-auto mb-1" />
+                  Alinan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckDirection("given")}
+                  className={`p-3 rounded-md border text-sm font-medium transition-colors ${checkDirection === "given" ? "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-950/30 dark:border-orange-600 dark:text-orange-400" : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"}`}
+                  data-testid="button-direction-given"
+                >
+                  <ArrowUpFromLine className="w-4 h-4 mx-auto mb-1" />
+                  Verilen
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Tutar</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={checkAmount}
+                onChange={(e) => setCheckAmount(e.target.value)}
+                placeholder="0.00"
+                data-testid="input-check-amount"
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Vade Tarihi</Label>
+              <Input
+                type="date"
+                value={checkDueDate}
+                onChange={(e) => setCheckDueDate(e.target.value)}
+                data-testid="input-check-due-date"
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Not (opsiyonel)</Label>
+              <Input
+                value={checkNotes}
+                onChange={(e) => setCheckNotes(e.target.value)}
+                placeholder="Banka, seri no vs."
+                data-testid="input-check-notes"
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => {
+                const amt = parseFloat(checkAmount);
+                if (!amt || amt <= 0) {
+                  toast({ title: "Tutar girin", variant: "destructive" });
+                  return;
+                }
+                if (!checkDueDate) {
+                  toast({ title: "Vade tarihi girin", variant: "destructive" });
+                  return;
+                }
+                createCheckMutation.mutate({
+                  counterpartyId: params.id,
+                  kind: checkKind,
+                  direction: checkDirection,
+                  amount: amt.toFixed(2),
+                  dueDate: checkDueDate,
+                  status: "pending",
+                  notes: checkNotes || null,
+                });
+              }}
+              disabled={createCheckMutation.isPending}
+              data-testid="button-save-check"
+            >
+              {createCheckMutation.isPending ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showAddTx} onOpenChange={setShowAddTx}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">

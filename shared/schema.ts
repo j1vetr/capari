@@ -69,6 +69,25 @@ export const stockAdjustments = pgTable("stock_adjustments", {
   index("idx_stock_adjustments_product").on(table.productId),
 ]);
 
+export const checksNotes = pgTable("checks_notes", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  counterpartyId: uuid("counterparty_id").notNull().references(() => counterparties.id),
+  kind: text("kind", { enum: ["check", "note"] }).notNull(),
+  direction: text("direction", { enum: ["received", "given"] }).notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  dueDate: date("due_date").notNull(),
+  status: text("status", { enum: ["pending", "paid", "bounced"] }).notNull().default("pending"),
+  notes: text("notes"),
+  transactionId: uuid("transaction_id").references(() => transactions.id),
+  reversalTransactionId: uuid("reversal_transaction_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_checks_notes_counterparty").on(table.counterpartyId),
+  index("idx_checks_notes_due_date").on(table.dueDate),
+  index("idx_checks_notes_status").on(table.status),
+]);
+
 export const insertCounterpartySchema = createInsertSchema(counterparties).omit({
   id: true,
   createdAt: true,
@@ -112,6 +131,18 @@ export type TransactionWithCounterparty = Transaction & { counterpartyName: stri
 
 export type InsertStockAdjustment = z.infer<typeof insertStockAdjustmentSchema>;
 export type StockAdjustment = typeof stockAdjustments.$inferSelect;
+
+export const insertCheckNoteSchema = createInsertSchema(checksNotes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  transactionId: true,
+  reversalTransactionId: true,
+});
+
+export type InsertCheckNote = z.infer<typeof insertCheckNoteSchema>;
+export type CheckNote = typeof checksNotes.$inferSelect;
+export type CheckNoteWithCounterparty = CheckNote & { counterpartyName: string; counterpartyType: string };
 
 export type ProductWithStock = Product & { currentStock: string };
 

@@ -1,11 +1,12 @@
 import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
 import { db } from "./db";
-import { counterparties, transactions, products, transactionItems, stockAdjustments } from "@shared/schema";
+import { counterparties, transactions, products, transactionItems, stockAdjustments, checksNotes } from "@shared/schema";
 import type {
   Counterparty, InsertCounterparty, CounterpartyWithBalance,
   Transaction, InsertTransaction, TransactionWithCounterparty, DashboardSummary, StatsData,
   Product, InsertProduct, ProductWithStock, TransactionItem, TransactionItemWithProduct,
-  InsertStockAdjustment, StockAdjustment
+  InsertStockAdjustment, StockAdjustment,
+  CheckNote, InsertCheckNote, CheckNoteWithCounterparty
 } from "@shared/schema";
 
 export interface IStorage {
@@ -45,6 +46,12 @@ export interface IStorage {
   createTransactionWithItems(data: InsertTransaction, items: { productId: string; quantity: string; unitPrice?: string }[]): Promise<Transaction>;
   getTransactionItems(transactionId: string): Promise<TransactionItemWithProduct[]>;
   createStockAdjustment(data: InsertStockAdjustment): Promise<StockAdjustment>;
+
+  getChecksByCounterparty(counterpartyId: string): Promise<CheckNote[]>;
+  createCheckNote(data: InsertCheckNote): Promise<CheckNote>;
+  updateCheckStatus(id: string, status: "paid" | "bounced"): Promise<CheckNote>;
+  getUpcomingChecks(daysBefore?: number): Promise<CheckNoteWithCounterparty[]>;
+
   resetAllData(): Promise<void>;
   getMonthlyReport(year: number, month: number): Promise<{
     totalSales: string;
@@ -547,8 +554,71 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async getChecksByCounterparty(counterpartyId: string): Promise<CheckNote[]> {
+    const rows = await db
+      .select()
+      .from(checksNotes)
+      .where(eq(checksNotes.counterpartyId, counterpartyId))
+      .orderBy(desc(checksNotes.dueDate));
+    return rows;
+  }
+
+  async createCheckNote(data: InsertCheckNote): Promise<CheckNote> {
+    const [created] = await db.insert(checksNotes).values(data).returning();
+    return created;
+  }
+
+  async updateCheckStatus(id: string, status: "paid" | "bounced"): Promise<CheckNote> {
+    const [updated] = await db
+      .update(checksNotes)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(checksNotes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getUpcomingChecks(daysBefore: number = 7): Promise<CheckNoteWithCounterparty[]> {
+    const today = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(today.getDate() + daysBefore);
+    const pastDate = new Date();
+    pastDate.setDate(today.getDate() - 30);
+    const todayStr = today.toISOString().split('T')[0];
+    const futureStr = futureDate.toISOString().split('T')[0];
+    const pastStr = pastDate.toISOString().split('T')[0];
+
+    const rows = await db
+      .select({
+        id: checksNotes.id,
+        counterpartyId: checksNotes.counterpartyId,
+        kind: checksNotes.kind,
+        direction: checksNotes.direction,
+        amount: checksNotes.amount,
+        dueDate: checksNotes.dueDate,
+        status: checksNotes.status,
+        notes: checksNotes.notes,
+        transactionId: checksNotes.transactionId,
+        reversalTransactionId: checksNotes.reversalTransactionId,
+        createdAt: checksNotes.createdAt,
+        updatedAt: checksNotes.updatedAt,
+        counterpartyName: counterparties.name,
+        counterpartyType: counterparties.type,
+      })
+      .from(checksNotes)
+      .innerJoin(counterparties, eq(checksNotes.counterpartyId, counterparties.id))
+      .where(
+        and(
+          eq(checksNotes.status, "pending"),
+          gte(checksNotes.dueDate, pastStr),
+          lte(checksNotes.dueDate, futureStr)
+        )
+      )
+      .orderBy(checksNotes.dueDate);
+    return rows;
+  }
+
   async resetAllData(): Promise<void> {
-    await db.execute(sql`TRUNCATE TABLE stock_adjustments, transaction_items, transactions, counterparties, products CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE checks_notes, stock_adjustments, transaction_items, transactions, counterparties, products CASCADE`);
   }
 }
 

@@ -11,7 +11,7 @@ import {
   Crown, AlertTriangle, Clock, BarChart3, Store, Truck
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg } from "@/lib/formatters";
-import type { DashboardSummary, StatsData, TransactionWithCounterparty } from "@shared/schema";
+import type { DashboardSummary, StatsData, TransactionWithCounterparty, CheckNoteWithCounterparty } from "@shared/schema";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 
 function StatCardLarge({ title, value, subtitle, icon: Icon, bgClass, iconClass, isLoading }: {
@@ -88,6 +88,9 @@ export default function Dashboard() {
   const { data: recentTxs, isLoading: recentLoading } = useQuery<TransactionWithCounterparty[]>({
     queryKey: ["/api/recent-transactions"],
   });
+  const { data: upcomingChecks } = useQuery<CheckNoteWithCounterparty[]>({
+    queryKey: ["/api/checks/upcoming"],
+  });
 
   const chartData = data?.last7DaysSales?.map((d, i, arr) => ({
     date: new Date(d.date).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" }),
@@ -132,6 +135,49 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {upcomingChecks && upcomingChecks.length > 0 && (() => {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const overdue = upcomingChecks.filter(c => new Date(c.dueDate) < today);
+        const dueSoon = upcomingChecks.filter(c => {
+          const d = new Date(c.dueDate);
+          return d >= today;
+        });
+        return (
+          <Card className="border-0 bg-amber-50 dark:bg-amber-950/20" data-testid="card-upcoming-checks">
+            <CardContent className="p-3">
+              <div className="flex items-start gap-2">
+                <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                    {overdue.length > 0 ? `${overdue.length} adet vadesi gecmis cek/senet!` : `${dueSoon.length} adet vadesi yaklasan cek/senet`}
+                  </p>
+                  <div className="flex flex-col gap-1 mt-1">
+                    {upcomingChecks.slice(0, 5).map(c => {
+                      const d = new Date(c.dueDate);
+                      const daysLeft = Math.ceil((d.getTime() - today.getTime()) / (1000*60*60*24));
+                      const isOvd = d < today;
+                      return (
+                        <div key={c.id} className="flex items-center gap-1 text-[10px]">
+                          <span className={isOvd ? "text-red-600 dark:text-red-400 font-semibold" : "text-amber-600 dark:text-amber-400"}>
+                            {c.counterpartyName}
+                          </span>
+                          <span className="text-amber-500 dark:text-amber-500">-</span>
+                          <span className="text-amber-600 dark:text-amber-400">{formatCurrency(c.amount)}</span>
+                          <span className="text-amber-500 dark:text-amber-500">
+                            ({isOvd ? `${Math.abs(daysLeft)} gun gecti` : daysLeft === 0 ? "bugun" : `${daysLeft} gun`})
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="flex gap-3">
         <StatCardLarge

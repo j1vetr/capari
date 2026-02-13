@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
-import { insertCounterpartySchema, insertTransactionSchema, insertProductSchema } from "@shared/schema";
+import { insertCounterpartySchema, insertTransactionSchema, insertProductSchema, insertCheckNoteSchema } from "@shared/schema";
 import { z } from "zod";
 import { generateCounterpartyPDF, generateDailyReportPDF, generateAllCounterpartiesPDF } from "./pdf";
 
@@ -758,6 +758,51 @@ export async function registerRoutes(
       );
       const fixed = result.rowCount || 0;
       res.json({ ok: true, fixed, message: `${fixed} müşteri işlemi düzeltildi (satış↔tahsilat)` });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/counterparties/:id/checks", requireAuth, async (req, res) => {
+    try {
+      const checks = await storage.getChecksByCounterparty(req.params.id);
+      res.json(checks);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/checks", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertCheckNoteSchema.parse(req.body);
+      const check = await storage.createCheckNote(parsed);
+      res.json(check);
+    } catch (e: any) {
+      if (e.name === "ZodError") {
+        return res.status(400).json({ message: "Gecersiz veri", errors: e.errors });
+      }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/checks/:id/status", requireAuth, async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!["paid", "bounced"].includes(status)) {
+        return res.status(400).json({ message: "Gecersiz durum" });
+      }
+      const updated = await storage.updateCheckStatus(req.params.id, status);
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/checks/upcoming", requireAuth, async (req, res) => {
+    try {
+      const days = req.query.days ? parseInt(req.query.days as string) : 7;
+      const checks = await storage.getUpcomingChecks(days);
+      res.json(checks);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
