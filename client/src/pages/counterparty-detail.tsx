@@ -1135,26 +1135,27 @@ export default function CounterpartyDetail() {
                           )}
                         </div>
                         <div className="flex flex-col gap-2">
-                          <Input
-                            placeholder="Ürün adı (örn: Levrek)"
-                            value={li.product}
-                            onChange={(e) => updateLineItem(li.id, "product", e.target.value)}
-                            className="text-sm"
-                            data-testid={`input-dialog-product-${li.id}`}
-                          />
-                          <div className="flex items-center gap-1.5 mb-1">
-                            {(["kg", "kasa", "adet"] as const).map((u) => (
-                              <Button
-                                key={u}
-                                type="button"
-                                variant={li.productUnit === u ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => updateLineItem(li.id, "productUnit", u)}
-                                data-testid={`button-dialog-unit-${u}-${li.id}`}
-                              >
-                                {u}
-                              </Button>
-                            ))}
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Urun adi"
+                              value={li.product}
+                              onChange={(e) => updateLineItem(li.id, "product", e.target.value)}
+                              className="bg-white dark:bg-card text-sm flex-1"
+                              data-testid={`input-dialog-product-${li.id}`}
+                            />
+                            <Select
+                              value={li.productUnit}
+                              onValueChange={(val) => updateLineItem(li.id, "productUnit", val)}
+                            >
+                              <SelectTrigger className="bg-white dark:bg-card text-sm w-24" data-testid={`select-dialog-unit-${li.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="kg">kg</SelectItem>
+                                <SelectItem value="kasa">kasa</SelectItem>
+                                <SelectItem value="adet">adet</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div className="relative">
@@ -1166,7 +1167,7 @@ export default function CounterpartyDetail() {
                                 placeholder={`Miktar (${li.productUnit})`}
                                 value={li.quantity}
                                 onChange={(e) => updateLineItem(li.id, "quantity", e.target.value)}
-                                className="text-sm pr-12"
+                                className="bg-white dark:bg-card text-sm pr-12"
                                 data-testid={`input-dialog-quantity-${li.id}`}
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-medium">{li.productUnit}</span>
@@ -1180,7 +1181,7 @@ export default function CounterpartyDetail() {
                                 placeholder="Birim fiyat"
                                 value={li.unitPrice}
                                 onChange={(e) => updateLineItem(li.id, "unitPrice", e.target.value)}
-                                className="text-sm pl-6"
+                                className="bg-white dark:bg-card text-sm pl-6"
                                 data-testid={`input-dialog-unit-price-${li.id}`}
                               />
                               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-bold">₺</span>
