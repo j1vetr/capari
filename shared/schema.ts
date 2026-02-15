@@ -157,11 +157,18 @@ export type DashboardSummary = {
   todayPurchases: string;
   todayPayments: string;
   last7DaysSales: { date: string; total: string }[];
+  checkStats: {
+    totalPendingReceived: string;
+    totalPendingGiven: string;
+    nearestCheck: { counterpartyName: string; amount: string; dueDate: string; kind: string; daysLeft: number } | null;
+    overdueCount: number;
+    overdueTotal: string;
+  };
 };
 
 export type StatsData = {
-  topDebtors: { id: string; name: string; balance: string }[];
-  topCreditors: { id: string; name: string; balance: string }[];
+  topDebtors: { id: string; name: string; balance: string; type: string }[];
+  topCreditors: { id: string; name: string; balance: string; type: string }[];
   totalCustomers: number;
   totalSuppliers: number;
   totalTransactions: number;

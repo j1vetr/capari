@@ -215,17 +215,25 @@ export class DatabaseStorage implements IStorage {
     const customers = allParties.filter(p => p.type === "customer");
     const suppliers = allParties.filter(p => p.type === "supplier");
 
-    const topDebtors = customers
-      .filter(c => parseFloat(c.balance) > 0)
-      .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance))
-      .slice(0, 5)
-      .map(c => ({ id: c.id, name: c.name, balance: c.balance }));
+    const topDebtors = allParties
+      .filter(c => {
+        if (c.type === "customer") return parseFloat(c.balance) > 0;
+        if (c.type === "supplier") return parseFloat(c.balance) < 0;
+        return false;
+      })
+      .sort((a, b) => Math.abs(parseFloat(b.balance)) - Math.abs(parseFloat(a.balance)))
+      .slice(0, 10)
+      .map(c => ({ id: c.id, name: c.name, balance: String(Math.abs(parseFloat(c.balance)).toFixed(2)), type: c.type }));
 
-    const topCreditors = suppliers
-      .filter(s => parseFloat(s.balance) > 0)
-      .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance))
-      .slice(0, 5)
-      .map(s => ({ id: s.id, name: s.name, balance: s.balance }));
+    const topCreditors = allParties
+      .filter(c => {
+        if (c.type === "supplier") return parseFloat(c.balance) > 0;
+        if (c.type === "customer") return parseFloat(c.balance) < 0;
+        return false;
+      })
+      .sort((a, b) => Math.abs(parseFloat(b.balance)) - Math.abs(parseFloat(a.balance)))
+      .slice(0, 10)
+      .map(c => ({ id: c.id, name: c.name, balance: String(Math.abs(parseFloat(c.balance)).toFixed(2)), type: c.type }));
 
     const txCountResult = await db.execute(sql`SELECT COUNT(*)::int as count FROM transactions`);
     const totalTransactions = (txCountResult.rows[0] as any)?.count || 0;
@@ -301,6 +309,40 @@ export class DatabaseStorage implements IStorage {
       ORDER BY tx_date
     `);
 
+    const checkStatsResult = await db.execute(sql`
+      SELECT
+        COALESCE(SUM(CASE WHEN cn.direction = 'received' AND cn.status = 'pending' THEN cn.amount ELSE 0 END), 0) as total_pending_received,
+        COALESCE(SUM(CASE WHEN cn.direction = 'given' AND cn.status = 'pending' THEN cn.amount ELSE 0 END), 0) as total_pending_given,
+        COALESCE(SUM(CASE WHEN cn.status = 'pending' AND cn.due_date < CURRENT_DATE THEN cn.amount ELSE 0 END), 0) as overdue_total,
+        COALESCE(SUM(CASE WHEN cn.status = 'pending' AND cn.due_date < CURRENT_DATE THEN 1 ELSE 0 END), 0)::int as overdue_count
+      FROM checks_notes cn
+    `);
+    const checkRow = checkStatsResult.rows[0] as any;
+
+    const nearestCheckResult = await db.execute(sql`
+      SELECT cn.amount, cn.due_date, cn.kind, c.name as counterparty_name
+      FROM checks_notes cn
+      JOIN counterparties c ON c.id = cn.counterparty_id
+      WHERE cn.status = 'pending' AND cn.due_date >= CURRENT_DATE
+      ORDER BY cn.due_date ASC
+      LIMIT 1
+    `);
+    const nearestRow = nearestCheckResult.rows[0] as any;
+    let nearestCheck = null;
+    if (nearestRow) {
+      const dueDate = new Date(nearestRow.due_date);
+      const todayDate = new Date();
+      todayDate.setHours(0,0,0,0);
+      const daysLeft = Math.ceil((dueDate.getTime() - todayDate.getTime()) / (1000*60*60*24));
+      nearestCheck = {
+        counterpartyName: nearestRow.counterparty_name,
+        amount: String(nearestRow.amount),
+        dueDate: nearestRow.due_date,
+        kind: nearestRow.kind,
+        daysLeft,
+      };
+    }
+
     return {
       totalReceivables: String(row.total_receivables),
       totalPayables: String(row.total_payables),
@@ -309,6 +351,13 @@ export class DatabaseStorage implements IStorage {
       todayPurchases: String(row.today_purchases),
       todayPayments: String(row.today_payments),
       last7DaysSales: chartResult.rows.map((r: any) => ({ date: r.date, total: String(r.total) })),
+      checkStats: {
+        totalPendingReceived: String(checkRow.total_pending_received),
+        totalPendingGiven: String(checkRow.total_pending_given),
+        nearestCheck,
+        overdueCount: checkRow.overdue_count,
+        overdueTotal: String(checkRow.overdue_total),
+      },
     };
   }
 
