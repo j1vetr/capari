@@ -287,8 +287,12 @@ export class DatabaseStorage implements IStorage {
         GROUP BY c.id, c.type
       )
       SELECT
-        COALESCE((SELECT SUM(balance) FROM balances WHERE balance > 0), 0) as total_receivables,
-        COALESCE((SELECT SUM(ABS(balance)) FROM balances WHERE balance < 0), 0) as total_payables,
+        COALESCE((SELECT SUM(balance) FROM balances WHERE type = 'customer' AND balance > 0), 0) as total_receivables,
+        COALESCE(
+          (SELECT SUM(balance) FROM balances WHERE type = 'supplier' AND balance > 0), 0
+        ) + COALESCE(
+          (SELECT SUM(ABS(balance)) FROM balances WHERE type = 'customer' AND balance < 0), 0
+        ) as total_payables,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='sale' AND tx_date=${today}), 0) as today_sales,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='collection' AND tx_date=${today}), 0) as today_collections,
         COALESCE((SELECT SUM(amount) FROM transactions WHERE tx_type='purchase' AND tx_date=${today}), 0) as today_purchases,

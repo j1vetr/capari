@@ -91,7 +91,7 @@ export default function Dashboard() {
                 {formatCurrency(data?.totalReceivables || "0")}
               </p>
             )}
-            <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">Carilerden alacak</p>
+            <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">Musterilerden alacak</p>
           </CardContent>
         </Card>
         <Card className="flex-1" data-testid="card-total-payables">
@@ -107,7 +107,7 @@ export default function Dashboard() {
                 {formatCurrency(data?.totalPayables || "0")}
               </p>
             )}
-            <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">Cariler + Tedarikciler</p>
+            <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">Tedarikciler + Cariler dahil</p>
           </CardContent>
         </Card>
       </div>
