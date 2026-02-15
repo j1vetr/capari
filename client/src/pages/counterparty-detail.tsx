@@ -25,6 +25,7 @@ import type { CounterpartyWithBalance, Transaction, CheckNote } from "@shared/sc
 type LineItem = {
   id: number;
   product: string;
+  productUnit: string;
   quantity: string;
   unitPrice: string;
 };
@@ -40,7 +41,7 @@ export default function CounterpartyDetail() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: nextItemId++, product: "", quantity: "", unitPrice: "" },
+    { id: nextItemId++, product: "", productUnit: "kg", quantity: "", unitPrice: "" },
   ]);
   const [dialogTxDate, setDialogTxDate] = useState(todayISO());
   const [filterType, setFilterType] = useState<string>("all");
@@ -103,7 +104,7 @@ export default function CounterpartyDetail() {
       setAmount("");
       setDescription("");
       setDialogTxDate(todayISO());
-      setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+      setLineItems([{ id: nextItemId++, product: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
     },
   });
 
@@ -268,7 +269,7 @@ export default function CounterpartyDetail() {
   };
 
   const addLineItem = () => {
-    setLineItems([...lineItems, { id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+    setLineItems([...lineItems, { id: nextItemId++, product: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
   };
 
   const removeLineItem = (id: number) => {
@@ -290,7 +291,7 @@ export default function CounterpartyDetail() {
   const dialogDescription = isSaleOrPurchaseTx
     ? lineItems
       .filter((li) => li.product && lineItemTotal(li) > 0)
-      .map((li) => `${li.product} ${li.quantity}kg x ${formatCurrency(li.unitPrice)}`)
+      .map((li) => `${li.product} ${li.quantity}${li.productUnit} x ${formatCurrency(li.unitPrice)}`)
       .join(", ") + (detailKdvAmount > 0 ? ` [KDV %1: ${formatCurrency(detailKdvAmount)}]` : "")
     : description;
 
@@ -304,13 +305,29 @@ export default function CounterpartyDetail() {
       toast({ title: "Gelecek tarihli işlem eklenemez", variant: "destructive" });
       return;
     }
-    createTxMutation.mutate({
+    const payload: any = {
       counterpartyId: params.id,
       txType,
       amount: dialogTotal.toFixed(2),
       description: dialogDescription || undefined,
       txDate: dialogTxDate,
-    });
+    };
+
+    if (isSaleOrPurchaseTx) {
+      const validItems = lineItems.filter(li => li.product.trim() && parseFloat(li.quantity) > 0);
+      if (validItems.length === 0) {
+        toast({ title: "En az bir urun girip miktar girin", variant: "destructive" });
+        return;
+      }
+      payload.purchaseItems = validItems.map(li => ({
+        productName: li.product.trim(),
+        productUnit: li.productUnit,
+        quantity: li.quantity,
+        unitPrice: li.unitPrice || undefined,
+      }));
+    }
+
+    createTxMutation.mutate(payload);
   };
 
   const handleExportPDF = () => {
@@ -1073,7 +1090,7 @@ export default function CounterpartyDetail() {
                       key={t.value}
                       onClick={() => {
                         setTxType(t.value);
-                        setLineItems([{ id: nextItemId++, product: "", quantity: "", unitPrice: "" }]);
+                        setLineItems([{ id: nextItemId++, product: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
                         setAmount("");
                         setDescription("");
                       }}
@@ -1125,6 +1142,20 @@ export default function CounterpartyDetail() {
                             className="text-sm"
                             data-testid={`input-dialog-product-${li.id}`}
                           />
+                          <div className="flex items-center gap-1.5 mb-1">
+                            {(["kg", "kasa", "adet"] as const).map((u) => (
+                              <Button
+                                key={u}
+                                type="button"
+                                variant={li.productUnit === u ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => updateLineItem(li.id, "productUnit", u)}
+                                data-testid={`button-dialog-unit-${u}-${li.id}`}
+                              >
+                                {u}
+                              </Button>
+                            ))}
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div className="relative">
                               <Input
@@ -1132,13 +1163,13 @@ export default function CounterpartyDetail() {
                                 inputMode="decimal"
                                 step="0.1"
                                 min="0"
-                                placeholder="Miktar (kg)"
+                                placeholder={`Miktar (${li.productUnit})`}
                                 value={li.quantity}
                                 onChange={(e) => updateLineItem(li.id, "quantity", e.target.value)}
-                                className="text-sm pr-8"
+                                className="text-sm pr-12"
                                 data-testid={`input-dialog-quantity-${li.id}`}
                               />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-medium">kg</span>
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-muted-foreground font-medium">{li.productUnit}</span>
                             </div>
                             <div className="relative">
                               <Input
