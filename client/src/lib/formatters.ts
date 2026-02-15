@@ -73,7 +73,7 @@ function parseTurkishNumber(s: string): number {
 
 export function parseLineItems(description: string | null | undefined): ParsedLineItem[] | null {
   if (!description) return null;
-  const regex = /([A-Za-zÀ-ÿçÇğĞıİöÖşŞüÜ\s]+?)\s+([\d.,]+)\s*(kg|kasa|adet)\s*x\s*₺?\s*([\d.,]+)/gi;
+  const regex = /(.+?)\s+([\d.,]+)\s*(kg|kasa|adet)\s*x\s*₺?\s*([\d.,]+)/gi;
   const items: ParsedLineItem[] = [];
   let match;
   while ((match = regex.exec(description)) !== null) {
