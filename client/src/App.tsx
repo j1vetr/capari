@@ -4,7 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LayoutDashboard, Plus, Users, FileBarChart, LogOut, Search, Store, Truck, Package } from "lucide-react";
+import { LayoutDashboard, Plus, Users, FileBarChart, LogOut, Search, Store, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,14 +17,12 @@ import QuickTransaction from "@/pages/quick-transaction";
 import Counterparties from "@/pages/counterparties";
 import CounterpartyDetail from "@/pages/counterparty-detail";
 import Reports from "@/pages/reports";
-import Stock from "@/pages/stock";
 import Login from "@/pages/login";
 
 const NAV_ITEMS = [
   { path: "/", label: "Ana Sayfa", icon: LayoutDashboard, match: (l: string) => l === "/" },
   { path: "/islem-ekle", label: "İşlem Ekle", icon: Plus, match: (l: string) => l.startsWith("/islem-ekle") },
   { path: "/cariler", label: "Cariler", icon: Users, match: (l: string) => l.startsWith("/cariler") },
-  { path: "/stok", label: "Stok", icon: Package, match: (l: string) => l.startsWith("/stok") },
   { path: "/raporlar", label: "Raporlar", icon: FileBarChart, match: (l: string) => l.startsWith("/raporlar") },
 ];
 
@@ -33,7 +31,7 @@ function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white dark:bg-card border-gray-200 dark:border-card-border safe-area-bottom" data-testid="nav-bottom">
-      <div className="max-w-lg mx-auto grid grid-cols-5">
+      <div className="max-w-lg mx-auto grid grid-cols-4">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = item.match(location);
@@ -66,7 +64,6 @@ function Router() {
       <Route path="/islem-ekle" component={QuickTransaction} />
       <Route path="/cariler" component={Counterparties} />
       <Route path="/cariler/:id" component={CounterpartyDetail} />
-      <Route path="/stok" component={Stock} />
       <Route path="/raporlar" component={Reports} />
       <Route component={NotFound} />
     </Switch>

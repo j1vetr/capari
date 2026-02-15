@@ -17,14 +17,13 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - `server/routes.ts` - Express API routes
 - `server/pdf.ts` - PDF generation for counterparty statements and daily reports
 - `server/seed.ts` - Demo seed data (customers, suppliers, transactions)
-- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties (with bulk check/note modal), counterparty-detail, reports, stock
+- `client/src/pages/` - React pages: dashboard, quick-transaction, counterparties (with bulk check/note modal), counterparty-detail, reports
 - `client/src/lib/formatters.ts` - Currency/date formatting utilities (Turkish locale)
 
 ## Key Features
 - **Login screen**: Session-based authentication with password (LOGIN_PASSWORD env var, default: capari2024). 30-day session cookie. Logout button in header.
 - Dashboard with summary cards (receivables, payables, daily totals) + 7-day sales chart + recent transactions + urgent payment alerts
-- Quick Transaction flow: search counterparty → select type → select products with quantities → save (with date picker)
-- **Stock/Inventory tracking**: Products (fish) with units (kg/kasa/adet), stock levels computed from transactions. Sale decreases stock, purchase increases stock.
+- Quick Transaction flow: search counterparty → select type → manually enter product name/unit/qty/price → save (with date picker)
 - Counterparty list with tabs (Müşteriler/Tedarikçiler) and balance display
 - Counterparty detail: balance, transaction history with date range filtering + pagination, reverse (Düzelt) feature, delete counterparty
 - Global search dialog in header for quick counterparty lookup
@@ -46,16 +45,13 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 ## Business Rules
 - Customer balance = sum(sale) - sum(collection) → positive = customer owes us
 - Supplier balance = sum(purchase) - sum(payment) → positive = we owe supplier
-- Stock = sum(purchase quantities) - sum(sale quantities) + sum(manual adjustments) per product
-- No deletion: "Düzelt" creates compensating reverse transaction (including stock reversal)
+- No deletion: "Düzelt" creates compensating reverse transaction
 - Counterparty deletion allowed regardless of balance (deletes all related transactions)
 - Invoiced firms (faturalı): 1% KDV added separately on sale/purchase transactions
 - Transaction dates cannot be in the future
-- Sale transactions check stock availability before saving
-- Purchase transactions: manual product entry (name+unit+qty+price), auto-creates product if not in list, stock increases automatically
+- Both sale and purchase transactions: manual product entry (name+unit+qty+price), auto-creates product if not in DB
 - Purchase allowed for both customers and suppliers (customer purchase reduces their balance)
-- Sale transactions: select product from existing list
-- Stock detail dialog: click product card to view all stock movements (transactions + manual adjustments)
+- Stock system removed - no stock tracking or validation
 - Balance formula: customer = sale - collection - purchase + payment; supplier = purchase - payment - sale + collection
 - Check/note creation automatically creates a linked transaction (received→collection, given→payment) that immediately affects counterparty balance
 - Check marked "paid" (ödendi): no balance change (already deducted at creation)
@@ -79,8 +75,6 @@ A mobile-first web app for a small fish distribution shop ("Çapari Balık Dağ�
 - POST /api/transactions/:id/reverse - Create reverse transaction
 - GET /api/transactions/:id/items - Get transaction line items
 - GET /api/products - List all products
-- GET /api/stock - Products with computed stock levels
-- GET /api/stock/:productId/movements - Product stock movement history (transactions + adjustments)
 - POST /api/products - Create new product
 - PATCH /api/products/:id - Update product
 - GET /api/reports/daily/:date - Daily report
