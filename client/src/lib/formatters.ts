@@ -61,6 +61,7 @@ export function todayISO(): string {
 export type ParsedLineItem = {
   product: string;
   quantity: string;
+  unit: string;
   unitPrice: string;
   total: number;
 };
@@ -72,16 +73,18 @@ function parseTurkishNumber(s: string): number {
 
 export function parseLineItems(description: string | null | undefined): ParsedLineItem[] | null {
   if (!description) return null;
-  const regex = /([A-Za-zÀ-ÿçÇğĞıİöÖşŞüÜ\s]+?)\s+([\d.,]+)\s*kg\s*x\s*₺?\s*([\d.,]+)/gi;
+  const regex = /([A-Za-zÀ-ÿçÇğĞıİöÖşŞüÜ\s]+?)\s+([\d.,]+)\s*(kg|kasa|adet)\s*x\s*₺?\s*([\d.,]+)/gi;
   const items: ParsedLineItem[] = [];
   let match;
   while ((match = regex.exec(description)) !== null) {
     const q = parseTurkishNumber(match[2]);
-    const p = parseTurkishNumber(match[3]);
+    const unit = match[3].toLowerCase();
+    const p = parseTurkishNumber(match[4]);
     if (q > 0 && p > 0) {
       items.push({
         product: match[1].trim(),
         quantity: q.toString(),
+        unit,
         unitPrice: p.toString(),
         total: q * p,
       });

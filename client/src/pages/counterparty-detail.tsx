@@ -868,7 +868,7 @@ export default function CounterpartyDetail() {
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-semibold text-gray-800 dark:text-foreground">{li.product}</p>
                               <p className="text-[11px] text-gray-400 dark:text-muted-foreground">
-                                {li.quantity} kg x {formatCurrency(li.unitPrice)}
+                                {li.quantity} {li.unit} x {formatCurrency(li.unitPrice)}
                               </p>
                             </div>
                             <span className="text-xs font-bold text-gray-700 dark:text-foreground flex-shrink-0">
