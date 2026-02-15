@@ -259,7 +259,7 @@ export default function CounterpartyDetail() {
     },
   });
 
-  const isSaleOrPurchaseTx = txType === "sale" || txType === "purchase";
+  const isSaleOrPurchaseTx = txType === "sale" || txType === "purchase" || txType === "collection";
 
   const lineItemTotal = (li: LineItem) => {
     const q = parseFloat(li.quantity) || 0;
