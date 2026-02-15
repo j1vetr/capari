@@ -88,7 +88,7 @@ export default function QuickTransaction() {
   const [newCompanyTitle, setNewCompanyTitle] = useState("");
   const [newAddress, setNewAddress] = useState("");
 
-  const isSaleOrPurchase = txType === "sale" || txType === "purchase";
+  const isSaleOrPurchase = txType === "sale" || txType === "purchase" || txType === "collection";
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: nextItemId++, productName: "", productUnit: "kg", quantity: "", unitPrice: "" },

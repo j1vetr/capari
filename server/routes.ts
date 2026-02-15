@@ -217,7 +217,7 @@ export async function registerRoutes(
         unitPrice: z.string().optional(),
       })).optional();
 
-      if (parsed.txType === "sale" || parsed.txType === "purchase") {
+      if (parsed.txType === "sale" || parsed.txType === "purchase" || parsed.txType === "collection") {
         const parsedPurchaseItems = purchaseItemSchema.parse(purchaseItems) || [];
         if (parsedPurchaseItems.length === 0) {
           return res.status(400).json({ message: "En az bir ürün girmelisiniz" });
