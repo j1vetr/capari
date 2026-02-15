@@ -55,7 +55,7 @@ export default function Counterparties() {
 
   const filtered = parties
     ?.filter((p) => p.type === tab)
-    .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((p) => p.name.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr")))
     .sort((a, b) => a.name.localeCompare(b.name, "tr")) || [];
 
   const totalBalance = filtered.reduce((s, p) => s + parseFloat(p.balance), 0);

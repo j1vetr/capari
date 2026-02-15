@@ -223,12 +223,12 @@ export default function Stock() {
 
   const activeProducts = stockData?.filter(p => p.isActive) || [];
   const filtered = activeProducts.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+    p.name.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr"))
   );
 
   const allProducts = stockData || [];
   const managedFiltered = allProducts.filter(p =>
-    p.name.toLowerCase().includes(manageSearch.toLowerCase())
+    p.name.toLocaleLowerCase("tr").includes(manageSearch.toLocaleLowerCase("tr"))
   );
 
   const unitLabel = (u: string) => {

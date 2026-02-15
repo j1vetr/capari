@@ -90,9 +90,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     if (!searchQuery.trim()) {
       setSearchResults(allCounterparties.slice(0, 10));
     } else {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLocaleLowerCase("tr");
       setSearchResults(allCounterparties.filter(c =>
-        c.name.toLowerCase().includes(q) ||
+        c.name.toLocaleLowerCase("tr").includes(q) ||
         (c.phone && c.phone.includes(q))
       ).slice(0, 10));
     }

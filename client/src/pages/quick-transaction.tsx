@@ -105,7 +105,7 @@ export default function QuickTransaction() {
   });
 
   const filtered = parties?.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+    p.name.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr"))
   ) || [];
 
   const createPartyMutation = useMutation({
