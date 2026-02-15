@@ -861,12 +861,12 @@ export default function CounterpartyDetail() {
                       <Separator className="mb-3" />
                       <div className="flex flex-col gap-2">
                         {parsedItems!.map((li, idx) => (
-                          <div key={idx} className="flex items-center gap-2.5" data-testid={`line-item-${tx.id}-${idx}`}>
-                            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-gray-50 dark:bg-muted flex-shrink-0">
+                          <div key={idx} className="flex items-start gap-2.5" data-testid={`line-item-${tx.id}-${idx}`}>
+                            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-gray-50 dark:bg-muted flex-shrink-0 mt-0.5">
                               <Fish className="w-3.5 h-3.5 text-gray-400 dark:text-muted-foreground" />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold text-gray-800 dark:text-foreground">{li.product}</p>
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-gray-800 dark:text-foreground break-words">{li.product}</p>
                               <p className="text-[11px] text-gray-400 dark:text-muted-foreground">
                                 {li.quantity} {li.unit} x {formatCurrency(li.unitPrice)}
                               </p>
