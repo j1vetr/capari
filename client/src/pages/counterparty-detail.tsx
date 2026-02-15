@@ -16,7 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Phone, MessageCircle, Plus, Store, Truck,
   RotateCcw, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Download, Check, AlertCircle, FileText, Clock, Pencil, Trash2, CalendarDays
+  Download, Check, AlertCircle, FileText, Clock, Pencil, Trash2, CalendarDays, ClipboardPaste, List
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, parseLineItems, todayISO } from "@/lib/formatters";
 import { ChevronDown, Fish } from "lucide-react";
@@ -43,6 +43,8 @@ export default function CounterpartyDetail() {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: nextItemId++, product: "", productUnit: "kg", quantity: "", unitPrice: "" },
   ]);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState("");
   const [dialogTxDate, setDialogTxDate] = useState(todayISO());
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStartDate, setFilterStartDate] = useState("");
@@ -105,6 +107,8 @@ export default function CounterpartyDetail() {
       setDescription("");
       setDialogTxDate(todayISO());
       setLineItems([{ id: nextItemId++, product: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
+      setBulkMode(false);
+      setBulkText("");
     },
   });
 
@@ -279,6 +283,57 @@ export default function CounterpartyDetail() {
 
   const updateLineItem = (id: number, field: keyof LineItem, value: string) => {
     setLineItems(lineItems.map((li) => li.id === id ? { ...li, [field]: value } : li));
+  };
+
+  const parseBulkText = (text: string): LineItem[] => {
+    const lines = text.split("\n").filter(l => l.trim());
+    const items: LineItem[] = [];
+    for (const line of lines) {
+      const parts = line.split(/[,;\t]+/).map(s => s.trim()).filter(Boolean);
+      if (parts.length < 3) continue;
+      const name = parts[0];
+      let unit = "kg";
+      let qtyStr = parts[1];
+      let priceStr = parts[2];
+      const qtyMatch = qtyStr.match(/^([\d.,]+)\s*(kg|kasa|adet)?$/i);
+      if (qtyMatch) {
+        qtyStr = qtyMatch[1].replace(",", ".");
+        if (qtyMatch[2]) unit = qtyMatch[2].toLowerCase();
+      } else {
+        qtyStr = qtyStr.replace(",", ".");
+      }
+      const priceMatch = priceStr.match(/^([\d.,]+)\s*(tl|₺)?$/i);
+      if (priceMatch) {
+        priceStr = priceMatch[1].replace(",", ".");
+      } else {
+        priceStr = priceStr.replace(",", ".");
+      }
+      if (parts.length >= 4) {
+        const unitCandidate = parts[1].toLowerCase().replace(/\s/g, "");
+        if (["kg", "kasa", "adet"].includes(unitCandidate)) {
+          unit = unitCandidate;
+          qtyStr = parts[2].replace(",", ".");
+          const p4 = parts[3].match(/^([\d.,]+)\s*(tl|₺)?$/i);
+          priceStr = p4 ? p4[1].replace(",", ".") : parts[3].replace(",", ".");
+        }
+      }
+      if (name && !isNaN(parseFloat(qtyStr)) && !isNaN(parseFloat(priceStr))) {
+        items.push({ id: nextItemId++, product: name, productUnit: unit, quantity: qtyStr, unitPrice: priceStr });
+      }
+    }
+    return items;
+  };
+
+  const handleBulkParse = () => {
+    const parsed = parseBulkText(bulkText);
+    if (parsed.length === 0) {
+      toast({ title: "Ayristirilamadi", description: "Her satir: Urun, Miktar, Fiyat seklinde olmali", variant: "destructive" });
+      return;
+    }
+    setLineItems(parsed);
+    setBulkMode(false);
+    setBulkText("");
+    toast({ title: `${parsed.length} kalem eklendi` });
   };
 
   const dialogSubtotal = isSaleOrPurchaseTx
@@ -1093,6 +1148,8 @@ export default function CounterpartyDetail() {
                         setLineItems([{ id: nextItemId++, product: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
                         setAmount("");
                         setDescription("");
+                        setBulkMode(false);
+                        setBulkText("");
                       }}
                       className={`flex items-center gap-2 p-3 rounded-md border transition-all ${isSelected
                         ? "ring-2 ring-sky-500 " + t.color
@@ -1114,9 +1171,43 @@ export default function CounterpartyDetail() {
             {txType && isSaleOrPurchaseTx && (
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Ürünler</Label>
-                  <Badge variant="secondary" className="text-[10px]">{lineItems.length} kalem</Badge>
+                  <Label className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wider">Urunler</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className="text-[10px]">{lineItems.length} kalem</Badge>
+                    <Button
+                      variant={bulkMode ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setBulkMode(!bulkMode)}
+                      className="gap-1 text-xs"
+                      data-testid="button-dialog-toggle-bulk"
+                    >
+                      {bulkMode ? <List className="w-3.5 h-3.5" /> : <ClipboardPaste className="w-3.5 h-3.5" />}
+                      {bulkMode ? "Tekli Giris" : "Toplu Yapistir"}
+                    </Button>
+                  </div>
                 </div>
+                {bulkMode ? (
+                  <Card>
+                    <CardContent className="p-3">
+                      <Textarea
+                        placeholder={"Her satira bir urun yazin:\nLevrek, 5, 120\nCipura, kg, 3, 95\nHamsi, kasa, 2, 250"}
+                        value={bulkText}
+                        onChange={(e) => setBulkText(e.target.value)}
+                        rows={6}
+                        className="text-sm font-mono bg-white dark:bg-card mb-2"
+                        data-testid="textarea-dialog-bulk"
+                      />
+                      <p className="text-[10px] text-gray-400 dark:text-muted-foreground mb-2">
+                        Format: Urun, Miktar, Fiyat veya Urun, Birim, Miktar, Fiyat
+                      </p>
+                      <Button onClick={handleBulkParse} className="w-full gap-1.5" data-testid="button-dialog-bulk-parse">
+                        <ClipboardPaste className="w-4 h-4" />
+                        Ayristir ve Ekle
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                <>
                 <div className="flex flex-col gap-2.5">
                   {lineItems.map((li, idx) => (
                     <Card key={li.id} data-testid={`card-dialog-line-item-${li.id}`}>
@@ -1207,6 +1298,8 @@ export default function CounterpartyDetail() {
                   <Plus className="w-4 h-4" />
                   Yeni Kalem Ekle
                 </Button>
+                </>
+                )}
               </div>
             )}
 

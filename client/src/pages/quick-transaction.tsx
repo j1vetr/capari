@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -21,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Search, Plus, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText, CalendarDays, PackagePlus, Fish
+  Check, ArrowLeft, UserPlus, X, ChevronRight, Store, Truck, Trash2, FileText, CalendarDays, PackagePlus, Fish, ClipboardPaste, List
 } from "lucide-react";
 import { formatCurrency, txTypeLabel, todayISO } from "@/lib/formatters";
 import type { CounterpartyWithBalance } from "@shared/schema";
@@ -90,6 +91,8 @@ export default function QuickTransaction() {
 
   const isSaleOrPurchase = txType === "sale" || txType === "purchase" || txType === "collection";
 
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: nextItemId++, productName: "", productUnit: "kg", quantity: "", unitPrice: "" },
   ]);
@@ -150,6 +153,8 @@ export default function QuickTransaction() {
       setDirectDescription("");
       setTxDate(todayISO());
       setSearch("");
+      setBulkMode(false);
+      setBulkText("");
     },
     onError: (err: Error) => {
       toast({ title: "İşlem kaydedilemedi", description: err.message, variant: "destructive" });
@@ -188,6 +193,57 @@ export default function QuickTransaction() {
   const computedTotal = subtotal + kdvAmount;
 
   const unitLabel = (u: string) => u === "kg" ? "kg" : u === "kasa" ? "kasa" : "adet";
+
+  const parseBulkText = (text: string): LineItem[] => {
+    const lines = text.split("\n").filter(l => l.trim());
+    const items: LineItem[] = [];
+    for (const line of lines) {
+      const parts = line.split(/[,;\t]+/).map(s => s.trim()).filter(Boolean);
+      if (parts.length < 3) continue;
+      const name = parts[0];
+      let unit = "kg";
+      let qtyStr = parts[1];
+      let priceStr = parts[2];
+      const qtyMatch = qtyStr.match(/^([\d.,]+)\s*(kg|kasa|adet)?$/i);
+      if (qtyMatch) {
+        qtyStr = qtyMatch[1].replace(",", ".");
+        if (qtyMatch[2]) unit = qtyMatch[2].toLowerCase();
+      } else {
+        qtyStr = qtyStr.replace(",", ".");
+      }
+      const priceMatch = priceStr.match(/^([\d.,]+)\s*(tl|₺)?$/i);
+      if (priceMatch) {
+        priceStr = priceMatch[1].replace(",", ".");
+      } else {
+        priceStr = priceStr.replace(",", ".");
+      }
+      if (parts.length >= 4) {
+        const unitCandidate = parts[1].toLowerCase().replace(/\s/g, "");
+        if (["kg", "kasa", "adet"].includes(unitCandidate)) {
+          unit = unitCandidate;
+          qtyStr = parts[2].replace(",", ".");
+          const p4 = parts[3].match(/^([\d.,]+)\s*(tl|₺)?$/i);
+          priceStr = p4 ? p4[1].replace(",", ".") : parts[3].replace(",", ".");
+        }
+      }
+      if (name && !isNaN(parseFloat(qtyStr)) && !isNaN(parseFloat(priceStr))) {
+        items.push({ id: nextItemId++, productName: name, productUnit: unit, quantity: qtyStr, unitPrice: priceStr });
+      }
+    }
+    return items;
+  };
+
+  const handleBulkParse = () => {
+    const parsed = parseBulkText(bulkText);
+    if (parsed.length === 0) {
+      toast({ title: "Ayristirilamadi", description: "Her satir: Urun, Miktar, Fiyat seklinde olmali", variant: "destructive" });
+      return;
+    }
+    setLineItems(parsed);
+    setBulkMode(false);
+    setBulkText("");
+    toast({ title: `${parsed.length} kalem eklendi` });
+  };
 
   const computedDescription = isSaleOrPurchase
     ? lineItems
@@ -300,7 +356,7 @@ export default function QuickTransaction() {
                 <Card
                   key={p.id}
                   className="hover-elevate active-elevate-2 cursor-pointer"
-                  onClick={() => { setSelectedParty(p); setTxType(""); }}
+                  onClick={() => { setSelectedParty(p); setTxType(""); setBulkMode(false); setBulkText(""); }}
                   data-testid={`card-counterparty-${p.id}`}
                 >
                   <CardContent className="p-3 flex items-center gap-3">
@@ -377,7 +433,7 @@ export default function QuickTransaction() {
                   <span className="font-semibold">{formatCurrency(selectedParty.balance)}</span>
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => { setSelectedParty(null); setTxType(""); }} data-testid="button-change-counterparty">
+              <Button variant="ghost" size="sm" onClick={() => { setSelectedParty(null); setTxType(""); setBulkMode(false); setBulkText(""); }} data-testid="button-change-counterparty">
                 Değiştir
               </Button>
             </CardContent>
@@ -397,6 +453,8 @@ export default function QuickTransaction() {
                       setLineItems([{ id: nextItemId++, productName: "", productUnit: "kg", quantity: "", unitPrice: "" }]);
                       setDirectAmount("");
                       setDirectDescription("");
+                      setBulkMode(false);
+                      setBulkText("");
                     }}
                     className={`flex items-center gap-3 p-3.5 rounded-md border transition-all text-left ${isSelected ? t.activeClass : t.bgClass + " border-transparent"}`}
                     data-testid={`button-tx-type-${t.value}`}
@@ -424,10 +482,44 @@ export default function QuickTransaction() {
               {isSaleOrPurchase ? (
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="text-sm font-semibold text-gray-700 dark:text-foreground">3. Ürünleri Gir</p>
-                    <Badge variant="secondary" className="text-[10px]">{lineItems.length} kalem</Badge>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-foreground">3. Urunleri Gir</p>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="secondary" className="text-[10px]">{lineItems.length} kalem</Badge>
+                      <Button
+                        variant={bulkMode ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setBulkMode(!bulkMode)}
+                        className="gap-1 text-xs"
+                        data-testid="button-toggle-bulk"
+                      >
+                        {bulkMode ? <List className="w-3.5 h-3.5" /> : <ClipboardPaste className="w-3.5 h-3.5" />}
+                        {bulkMode ? "Tekli Giris" : "Toplu Yapistir"}
+                      </Button>
+                    </div>
                   </div>
 
+                  {bulkMode ? (
+                    <Card>
+                      <CardContent className="p-3">
+                        <Textarea
+                          placeholder={"Her satira bir urun yazin:\nLevrek, 5, 120\nCipura, kg, 3, 95\nHamsi, kasa, 2, 250"}
+                          value={bulkText}
+                          onChange={(e) => setBulkText(e.target.value)}
+                          rows={6}
+                          className="text-sm font-mono bg-white dark:bg-card mb-2"
+                          data-testid="textarea-bulk-input"
+                        />
+                        <p className="text-[10px] text-gray-400 dark:text-muted-foreground mb-2">
+                          Format: Urun, Miktar, Fiyat veya Urun, Birim, Miktar, Fiyat
+                        </p>
+                        <Button onClick={handleBulkParse} className="w-full gap-1.5" data-testid="button-parse-bulk">
+                          <ClipboardPaste className="w-4 h-4" />
+                          Ayristir ve Ekle
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                  <>
                   <div className="flex flex-col gap-3">
                     {lineItems.map((li, idx) => (
                       <Card key={li.id} className="relative" data-testid={`card-line-item-${li.id}`}>
@@ -519,6 +611,8 @@ export default function QuickTransaction() {
                     <Plus className="w-4 h-4" />
                     Yeni Kalem Ekle
                   </Button>
+                  </>
+                  )}
                 </div>
               ) : (
                 <div>
