@@ -810,6 +810,16 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/checks/all", requireAuth, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const checks = await storage.getAllChecks(status);
+      res.json(checks);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/checks/upcoming", requireAuth, async (req, res) => {
     try {
       const days = req.query.days ? parseInt(req.query.days as string) : 7;

@@ -54,6 +54,7 @@ export interface IStorage {
   bounceCheckNote(id: string): Promise<CheckNote>;
   deleteCheckNote(id: string): Promise<void>;
   getUpcomingChecks(daysBefore?: number): Promise<CheckNoteWithCounterparty[]>;
+  getAllChecks(statusFilter?: string): Promise<CheckNoteWithCounterparty[]>;
 
   resetAllData(): Promise<void>;
   getMonthlyReport(year: number, month: number): Promise<{
@@ -735,6 +736,37 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(checksNotes.dueDate);
+    return rows;
+  }
+
+  async getAllChecks(statusFilter?: string): Promise<CheckNoteWithCounterparty[]> {
+    const conditions = [];
+    if (statusFilter && statusFilter !== "all") {
+      conditions.push(eq(checksNotes.status, statusFilter as any));
+    }
+
+    const rows = await db
+      .select({
+        id: checksNotes.id,
+        counterpartyId: checksNotes.counterpartyId,
+        kind: checksNotes.kind,
+        direction: checksNotes.direction,
+        amount: checksNotes.amount,
+        dueDate: checksNotes.dueDate,
+        receivedDate: checksNotes.receivedDate,
+        status: checksNotes.status,
+        notes: checksNotes.notes,
+        transactionId: checksNotes.transactionId,
+        reversalTransactionId: checksNotes.reversalTransactionId,
+        createdAt: checksNotes.createdAt,
+        updatedAt: checksNotes.updatedAt,
+        counterpartyName: counterparties.name,
+        counterpartyType: counterparties.type,
+      })
+      .from(checksNotes)
+      .innerJoin(counterparties, eq(checksNotes.counterpartyId, counterparties.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(checksNotes.dueDate));
     return rows;
   }
 

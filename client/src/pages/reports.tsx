@@ -5,16 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   Calendar, Download, ShoppingCart, ArrowDownToLine, Banknote, ArrowUpFromLine,
-  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays, Database, Trash2, AlertTriangle, RefreshCw
+  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, FileText, CalendarDays, Database,
+  CreditCard, ScrollText, ArrowDown, ArrowUp, Clock, CheckCircle2, XCircle
 } from "lucide-react";
 import { formatCurrency, formatDate, txTypeLabel, txTypeColor, txTypeBg, todayISO } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { queryClient } from "@/lib/queryClient";
-import type { TransactionWithCounterparty } from "@shared/schema";
+import type { TransactionWithCounterparty, CheckNoteWithCounterparty } from "@shared/schema";
 
 type DailyReport = {
   totalSales: string;
@@ -44,12 +42,7 @@ export default function Reports() {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [resetDialogOpen, setResetDialogOpen] = useState(false);
-  const [resetConfirmText, setResetConfirmText] = useState("");
-  const [resetDone, setResetDone] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [fixingDirections, setFixingDirections] = useState(false);
-  const [fixResult, setFixResult] = useState<string | null>(null);
+  const [checkFilter, setCheckFilter] = useState<"all" | "pending" | "paid" | "bounced">("all");
   const { toast } = useToast();
 
   const { data: dailyReport, isLoading: dailyLoading } = useQuery<DailyReport>({
@@ -60,6 +53,11 @@ export default function Reports() {
   const { data: monthlyReport, isLoading: monthlyLoading } = useQuery<MonthlyReport>({
     queryKey: ["/api/reports/monthly", selectedYear, selectedMonth],
     enabled: tab === "monthly",
+  });
+
+  const checksUrl = checkFilter === "all" ? "/api/checks/all" : `/api/checks/all?status=${checkFilter}`;
+  const { data: allChecks, isLoading: checksLoading } = useQuery<CheckNoteWithCounterparty[]>({
+    queryKey: [checksUrl],
   });
 
   const handleExportDailyPDF = () => {
@@ -447,121 +445,126 @@ export default function Reports() {
         </>
       )}
 
-      <Card className="border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/10">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-md bg-amber-100 dark:bg-amber-950/30 flex-shrink-0">
-              <RefreshCw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Müşteri İşlem Yönlerini Düzelt</p>
-              <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-0.5">
-                Eski mantıkla girilen müşteri işlemlerinin yönünü düzeltir. Satış ve tahsilat yer değiştirir. Bir kez çalıştırın.
-              </p>
-              {fixResult && (
-                <p className="text-xs font-medium text-green-700 dark:text-green-400 mt-1.5">{fixResult}</p>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 gap-1.5 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400"
-                disabled={fixingDirections}
-                onClick={async () => {
-                  setFixingDirections(true);
-                  setFixResult(null);
-                  try {
-                    const res = await apiRequest("POST", "/api/admin/fix-customer-directions", { confirm: "DUZELT" });
-                    const data = await res.json();
-                    setFixResult(data.message);
-                    toast({ title: "Düzeltme tamamlandı", description: data.message });
-                  } catch (e: any) {
-                    toast({ title: "Hata", description: e.message, variant: "destructive" });
-                  } finally {
-                    setFixingDirections(false);
-                  }
-                }}
-                data-testid="button-fix-directions"
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground uppercase tracking-wider">
+          Cek / Senet Takibi
+        </p>
+        <Badge variant="secondary" className="text-[10px]">
+          {allChecks?.length || 0} kayit
+        </Badge>
+      </div>
+
+      <div className="flex items-center gap-1.5 overflow-x-auto">
+        {([
+          { value: "all", label: "Tumu" },
+          { value: "pending", label: "Bekleyen" },
+          { value: "paid", label: "Odenen" },
+          { value: "bounced", label: "Karsiliks." },
+        ] as const).map((f) => (
+          <Button
+            key={f.value}
+            variant={checkFilter === f.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCheckFilter(f.value)}
+            data-testid={`button-check-filter-${f.value}`}
+          >
+            {f.label}
+          </Button>
+        ))}
+      </div>
+
+      {checksLoading ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-3"><Skeleton className="h-16 w-full" /></CardContent></Card>
+          ))}
+        </div>
+      ) : (allChecks && allChecks.length > 0) ? (
+        <div className="flex flex-col gap-2">
+          {allChecks.map((ck) => {
+            const isOverdue = ck.status === "pending" && new Date(ck.dueDate) < new Date(todayISO());
+            const daysLeft = Math.ceil((new Date(ck.dueDate).getTime() - new Date(todayISO()).getTime()) / (1000 * 60 * 60 * 24));
+
+            return (
+              <Card
+                key={ck.id}
+                className={isOverdue ? "border-red-200 dark:border-red-900/50" : ""}
+                data-testid={`card-check-${ck.id}`}
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${fixingDirections ? "animate-spin" : ""}`} />
-                {fixingDirections ? "Düzeltiliyor..." : "Yönleri Düzelt"}
-              </Button>
-            </div>
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex items-center justify-center w-9 h-9 rounded-md mt-0.5 flex-shrink-0 ${
+                      ck.kind === "check"
+                        ? "bg-blue-50 dark:bg-blue-950/30"
+                        : "bg-purple-50 dark:bg-purple-950/30"
+                    }`}>
+                      {ck.kind === "check"
+                        ? <CreditCard className={`w-4 h-4 ${ck.kind === "check" ? "text-blue-600 dark:text-blue-400" : "text-purple-600 dark:text-purple-400"}`} />
+                        : <ScrollText className="w-4 h-4 text-purple-600 dark:text-purple-400" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-foreground truncate">{ck.counterpartyName}</p>
+                        <Badge variant="secondary" className="text-[9px]">
+                          {ck.counterpartyType === "customer" ? "Musteri" : "Tedarikci"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge
+                          variant="secondary"
+                          className={`text-[9px] ${
+                            ck.kind === "check" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400" : "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400"
+                          }`}
+                        >
+                          {ck.kind === "check" ? "Cek" : "Senet"}
+                        </Badge>
+                        <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-muted-foreground">
+                          {ck.direction === "received" ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+                          {ck.direction === "received" ? "Alinan" : "Verilen"}
+                        </span>
+                        {ck.status === "pending" && (
+                          <span className={`flex items-center gap-0.5 text-[10px] ${isOverdue ? "text-red-600 dark:text-red-400 font-medium" : "text-amber-600 dark:text-amber-400"}`}>
+                            <Clock className="w-3 h-3" />
+                            {isOverdue ? `${Math.abs(daysLeft)} gun gecikti` : daysLeft === 0 ? "Bugun" : `${daysLeft} gun kaldi`}
+                          </span>
+                        )}
+                        {ck.status === "paid" && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Odendi
+                          </span>
+                        )}
+                        {ck.status === "bounced" && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-red-600 dark:text-red-400">
+                            <XCircle className="w-3 h-3" />
+                            Karsiliks.
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-muted-foreground mt-1">
+                        Vade: {formatDate(ck.dueDate)}
+                        {ck.notes && ` - ${ck.notes}`}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-gray-900 dark:text-foreground whitespace-nowrap flex-shrink-0">
+                      {formatCurrency(ck.amount)}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-10">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-muted mx-auto mb-3">
+            <CreditCard className="w-5 h-5 text-gray-400 dark:text-muted-foreground" />
           </div>
-        </CardContent>
-      </Card>
-
-      {!resetDone && (
-        <Card className="border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/10">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-md bg-red-100 dark:bg-red-950/30 flex-shrink-0">
-                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-red-800 dark:text-red-300">Verileri Sıfırla</p>
-                <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-0.5">
-                  Tum cariler, islemler, urunler ve stok verileri kalıcı olarak silinir. Bu islem geri alınamaz.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 gap-1.5 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400"
-                  onClick={() => { setResetDialogOpen(true); setResetConfirmText(""); }}
-                  data-testid="button-open-reset"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Verileri Sıfırla
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <p className="text-sm font-medium text-gray-500 dark:text-muted-foreground">
+            {checkFilter === "all" ? "Kayitli cek/senet yok" : "Bu filtreye uygun cek/senet yok"}
+          </p>
+        </div>
       )}
-
-      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-red-700 dark:text-red-400">Verileri Sıfırla</DialogTitle>
-            <DialogDescription>
-              Bu islem tum carileri, islemleri, urunleri ve stok verilerini kalıcı olarak siler. Geri alınamaz.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-gray-700 dark:text-foreground">
-              Onaylamak icin asagıya <span className="font-bold text-red-600 dark:text-red-400">SIFIRLA</span> yazın:
-            </p>
-            <Input
-              value={resetConfirmText}
-              onChange={(e) => setResetConfirmText(e.target.value)}
-              placeholder="SIFIRLA"
-              data-testid="input-reset-confirm"
-            />
-            <Button
-              variant="destructive"
-              disabled={resetConfirmText !== "SIFIRLA" || resetting}
-              className="gap-1.5"
-              onClick={async () => {
-                setResetting(true);
-                try {
-                  await apiRequest("POST", "/api/admin/reset", { confirm: "SIFIRLA" });
-                  toast({ title: "Veriler sıfırlandı", description: "Tum veriler basarıyla silindi." });
-                  setResetDialogOpen(false);
-                  setResetDone(true);
-                  queryClient.clear();
-                } catch (e: any) {
-                  toast({ title: "Hata", description: e.message, variant: "destructive" });
-                } finally {
-                  setResetting(false);
-                }
-              }}
-              data-testid="button-confirm-reset"
-            >
-              <Trash2 className="w-4 h-4" />
-              {resetting ? "Siliniyor..." : "Kalıcı Olarak Sil"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
